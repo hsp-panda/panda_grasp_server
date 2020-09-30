@@ -1,0 +1,5 @@
+# request
+geometry_msgs/PoseStamped target_pose # Target pose for the motion
+---
+# response
+bool success
