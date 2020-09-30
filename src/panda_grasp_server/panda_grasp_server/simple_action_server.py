@@ -30,7 +30,7 @@ def all_close(goal, actual, tolerance):
 
 class PandaGraspServer(object):
 
-    def __init__(self, service_name, publish_rviz):
+    def __init__(self, service_name, move_service_name, publish_rviz):
         # --- configure moveit --- #
         moveit_commander.roscpp_initialize(sys.argv)
         self._robot = moveit_commander.RobotCommander()
@@ -66,7 +66,7 @@ class PandaGraspServer(object):
                                             self.do_grasp)
 
         # Configure movement server
-        self._movement_server = rospy.Service("~move_arm", PandaMove, self.go_to_pose)
+        self._movement_server = rospy.Service(move_service_name, PandaMove, self.go_to_pose)
 
         self._home_pose = geometry_msgs.msg.Pose()
         # top view
@@ -365,11 +365,12 @@ if __name__ == "__main__":
 
     # Get configs.
     # rospy.get_param("~grasp_planner_service_name")
-    grasp_service_name = "panda_grasp"
+    grasp_service_name  = "~panda_grasp"
+    move_service_name   = "~panda_move"
     publish_rviz = True  # rospy.get_param("~publish_rviz")
 
     # Instantiate the grasp planner.
-    grasp_planner = PandaGraspServer(grasp_service_name, publish_rviz)
+    grasp_planner = PandaGraspServer(grasp_service_name, move_service_name, publish_rviz)
 
     # Spin forever.
     rospy.spin()
