@@ -311,9 +311,9 @@ class PandaGraspServer(object):
 
     def go_to_pose(self, req):
 
-        target_pose = self._move_group.get_current_pose
+        target_pose = self._move_group.get_current_pose()
 
-        target_pose.position = req.target_pose.position
+        target_pose.pose.position = req.target_pose.pose.position
 
         # target_pose.orienation = pose.orientation
 
@@ -325,7 +325,7 @@ class PandaGraspServer(object):
 
         self._move_group.clear_pose_targets()
 
-        return true
+        return True
 
 
 
