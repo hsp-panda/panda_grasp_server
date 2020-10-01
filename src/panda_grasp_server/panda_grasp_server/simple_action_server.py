@@ -42,7 +42,7 @@ class ServiceNames(object):
 
 class PandaActionServer(object):
 
-    def __init__(self, service_name, move_service_name, publish_rviz):
+    def __init__(self, service_names, publish_rviz):
         
         # Configure moveit
         moveit_commander.roscpp_initialize(sys.argv)
@@ -376,16 +376,16 @@ class PandaActionServer(object):
     def execute_trajectory(self):
         # Execute trajectory around home state
 
-        self.go_home()
+        self.go_to_home_joints(None)
         pose_start = self._move_group.get_current_pose().pose
         pose_wp1 = self._move_group.get_current_pose().pose
         pose_wp2 = self._move_group.get_current_pose().pose
         pose_wp3 = self._move_group.get_current_pose().pose
 
-        pose_wp1.position.x += 0.05
-        pose_wp2.position.x += 0.05
-        pose_wp2.position.y += 0.05
-        pose_wp3.position.z += 0.05
+        pose_wp1.position.x += 0.2
+        pose_wp2.position.x += 0.2
+        pose_wp2.position.y += 0.2
+        pose_wp3.position.z += 0.2
 
         waypoints = []
         waypoints.append(pose_start)
@@ -401,8 +401,13 @@ class PandaActionServer(object):
                                         avoid_collisions=True
                                         )
 
+        plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
+                                                    plan,
+                                                    velocity_scaling_factor=0.2,
+                                                    acceleration_scaling_factor=0.2)
+
         if fraction > 0.5:
-            print("moving robot arm")
+            print("moving robot arm. Planned " + str(fraction) + " of the trajectory")
             self._move_group.execute(plan, wait=True)
             self._move_group.stop()
             self._move_group.clear_pose_targets()
