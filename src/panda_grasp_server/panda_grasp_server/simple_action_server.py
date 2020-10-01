@@ -122,7 +122,7 @@ class PandaActionServer(object):
 
         if cmd=="help":
             print("available commands are:")
-            print("go_home\nset_home\njoints_state\npose_ee\nmove_gripper")
+            print("go_home\nset_home\njoints_state\npose_ee\nmove_gripper\nexecute_traj")
             return True
 
         elif cmd == "go_home":
@@ -157,7 +157,10 @@ class PandaActionServer(object):
 
             self.command_gripper(width)
             return True
-
+        elif cmd == "execute_traj":
+            print("executing trajectory")
+            self.execute_trajectory()
+            return True
         else:
             print("unvalid command ", cmd)
             return False
@@ -348,23 +351,67 @@ class PandaActionServer(object):
     def go_to_pose(self, req):
 
         target_pose = self._move_group.get_current_pose()
-
         target_pose.pose.position = req.target_pose.pose.position
-
-        # target_pose.orienation = pose.orientation
-
         self._move_group.set_pose_target(target_pose)
 
         plan = self._move_group.go(wait=True)
 
         self._move_group.stop()
-
         self._move_group.clear_pose_targets()
 
         return True
 
+    def go_to_home_joints(self, req):
 
+        self._move_group.set_joint_value_target(self._home_pose_joints)
+        self._move_group.go(wait=True)
+        self._move_group.stop()
+        self._move_group.clear_pose_targets()
 
+        return TriggerResponse(
+                                success = True, 
+                                message = "Arm homed"
+        )
+
+    def execute_trajectory(self):
+        # Execute trajectory around home state
+
+        self.go_home()
+        pose_start = self._move_group.get_current_pose().pose
+        pose_wp1 = self._move_group.get_current_pose().pose
+        pose_wp2 = self._move_group.get_current_pose().pose
+        pose_wp3 = self._move_group.get_current_pose().pose
+
+        pose_wp1.position.x += 0.05
+        pose_wp2.position.x += 0.05
+        pose_wp2.position.y += 0.05
+        pose_wp3.position.z += 0.05
+
+        waypoints = []
+        waypoints.append(pose_start)
+        waypoints.append(pose_wp1)
+        waypoints.append(pose_wp2)
+        waypoints.append(pose_wp3)
+        waypoints.append(pose_start)
+
+        (plan, fraction) = self._move_group.compute_cartesian_path(
+                                        waypoints=waypoints,
+                                        eef_step=0.01,
+                                        jump_threshold=0.0,
+                                        avoid_collisions=True
+                                        )
+
+        if fraction > 0.5:
+            print("moving robot arm")
+            self._move_group.execute(plan, wait=True)
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            return True
+        else:
+            print("plan failed")
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            return False
 
     def _get_pose_from_user(self):
         position = [0]*3
