@@ -352,6 +352,7 @@ class PandaActionServer(object):
 
         target_pose = self._move_group.get_current_pose()
         target_pose.pose.position = req.target_pose.pose.position
+        target_pose.pose.orientation = req.target_pose.pose.orientation
         self._move_group.set_pose_target(target_pose)
 
         plan = self._move_group.go(wait=True)
