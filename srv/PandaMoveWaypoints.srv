@@ -1,0 +1,6 @@
+# request
+geometry_msgs/PoseArray pose_waypoints # Ordered sequence of poses to traverse in trajectory
+---
+# response
+bool success
+std_msgs/String message

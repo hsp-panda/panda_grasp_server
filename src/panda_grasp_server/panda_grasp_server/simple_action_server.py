@@ -11,7 +11,10 @@ import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix
 
-from panda_grasp_server.srv import PandaGrasp, PandaGraspRequest, PandaGraspResponse, UserCmd, PandaMove, PandaMoveRequest, PandaMoveResponse
+from panda_grasp_server.srv import PandaGrasp, PandaGraspRequest, PandaGraspResponse,
+                                UserCmd,
+                                PandaMove, PandaMoveRequest, PandaMoveResponse,
+                                PandaMoveWaypoints, PandaMoveWaypointsRequest, PandaMoveWaypointsResponse
 
 
 def all_close(goal, actual, tolerance):
@@ -39,6 +42,7 @@ class NodeConfig(object):
         self._move_service_name = "~panda_move_pose"
         self._grasp_service_name = "~panda_grasp"
         self._home_service_name = "~panda_home"
+        self._move_wp_service_name = "~panda_move_wp"
 
         # Configure scene parameters
         self._table_height = None #maybe fetch from param server?
@@ -55,7 +59,6 @@ class NodeConfig(object):
 
         # Enable Rviz visualization of trajectories
         self._publish_rviz = True
-
 
 
 class PandaActionServer(object):
@@ -113,6 +116,11 @@ class PandaActionServer(object):
         self._homing_server = rospy.Service(config._home_service_name,
                                             Trigger,
                                             self.go_to_home_joints)
+
+        # Configure trajectory movement server
+        self._wp_movement_server = rospy.Service(config._move_wp_service_name,
+                                                PandaMoveWaypoints,
+                                                self.execute_trajectory)
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -396,7 +404,53 @@ class PandaActionServer(object):
                                 message = "Arm homed"
         )
 
+    def execute_trajectory(self, req):
+
+        # Plan and execute trajectory based on an array of pose waypoints
+        waypoints = []
+        pose_start = self._move_group.get_current_pose().pose
+        waypoints.append(pose_start)
+
+        # Add all the waypoints from the message
+        for wp in req.pose_waypoints.poses:
+            waypoints.append(wp)
+
+        # Plan
+        (plan, fraction) = self._move_group.compute_cartesian_path(
+                                waypoints=waypoints,
+                                eef_step=0.01,
+                                jump_threshold=0.0,
+                                avoid_collisions=True
+                                )
+
+        # Retime trajectory according to velocity/acceleration limits
+        plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
+                                        plan,
+                                        velocity_scaling_factor=self._max_velocity_scaling_factor,
+                                        acceleration_scaling_factor=self._max_acceleration_scaling_factor)
+
+        if fraction > 0.99:
+            msg = "Moving robot arm. Planned " + str(fraction) + " of the trajectory"
+            print(msg)
+            self._move_group.execute(plan, wait=True)
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            return PandaMoveWaypointResponse(
+                success=True,
+                message=msg
+            )
+        else:
+            msg = "Plan failed. Planned " + str(fraction*100) + "% of the trajectory"
+            print(msg)
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            return PandaMoveWaypointResponse(
+                success=False,
+                message=msg
+            )
+
     def execute_trajectory(self):
+
         # Execute trajectory around home state
 
         self.go_to_home_joints(None)

@@ -57,10 +57,11 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## Generate services in the 'srv' folder
 add_service_files(
-  FILES 
+  FILES
   PandaGrasp.srv
   PandaMove.srv
   UserCmd.srv
+  PandaMoveWaypoints.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -73,7 +74,7 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  geometry_msgs 
+  geometry_msgs
   std_msgs
 )
 

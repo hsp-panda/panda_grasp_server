@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>panda_grasp_server</name>
-  <version>0.0.0</version>
+  <version>0.0.1</version>
   <description>A simple grasp server for the Franka Emika Panda</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -49,7 +49,7 @@
   <!-- Use doc_depend for packages you need only for building documentation: -->
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
-  
+
   <build_depend>geometry_msgs</build_depend>
   <build_depend>message_generation</build_depend>
   <build_depend>rospy</build_depend>
