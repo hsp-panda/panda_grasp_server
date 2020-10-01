@@ -30,38 +30,60 @@ def all_close(goal, actual, tolerance):
     return True
 
 
-class ServiceNames(object):
+class NodeConfig(object):
 
     def __init__(self):
 
-        # Initialize names
+        # Configure service names
         self._user_cmd_service_name = "~user_cmd"
         self._move_service_name = "~panda_move_pose"
         self._grasp_service_name = "~panda_grasp"
         self._home_service_name = "~panda_home"
 
+        # Configure scene parameters
+        self._table_height = None #maybe fetch from param server?
+        self._robot_workspace = None
+        self._bench_dimensions = (0.6, 0.6, 0.6) # x y z
+        self._bench_mount_point_xy = (0.2, 0.0) # x y wrt center of the bench
+
+        # Configure speed/accel scaling factors
+        self._max_velocity_scaling_factor = 0.3
+        self._max_acceleration_scaling_factor = 0.3
+
+        # Configure planner ID
+        self._planner_id = "RRTkConfigDefault"
+
+        # Enable Rviz visualization of trajectories
+        self._publish_rviz = True
+
+
+
 class PandaActionServer(object):
 
-    def __init__(self, service_names, publish_rviz):
-        
+    def __init__(self, config):
+
         # Configure moveit
         moveit_commander.roscpp_initialize(sys.argv)
         self._robot = moveit_commander.RobotCommander()
+
         self._group_name = "panda_arm"
         self._move_group = moveit_commander.MoveGroupCommander(
             self._group_name)
         self._move_group.set_end_effector_link("panda_hand")
         self._eef_link = self._move_group.get_end_effector_link()
-
         self._move_group_hand = moveit_commander.MoveGroupCommander(
             "hand")
 
-        self._move_group.set_max_velocity_scaling_factor(0.1)
+        self._max_velocity_scaling_factor = config._max_velocity_scaling_factor
+        self._max_acceleration_scaling_factor = config._max_acceleration_scaling_factor
+
+        self._move_group.set_max_velocity_scaling_factor(config._max_velocity_scaling_factor)
+        self._move_group.set_max_acceleration_scaling_factor(config._max_acceleration_scaling_factor)
 
         self._move_group.set_planner_id("RRTkConfigDefault")
 
-        # display trajectories in Rviz
-        self._publish_rviz = publish_rviz
+        # Display trajectories in Rviz
+        self._publish_rviz = config._publish_rviz
         self._display_trajectory_publisher = None
         if self._publish_rviz:
             self._display_trajectory_publisher = rospy.Publisher('/move_group/display_planned_path',
@@ -72,29 +94,29 @@ class PandaActionServer(object):
         self._scene.remove_world_object()
 
         # Configure user input server
-        self._cmd_srv = rospy.Service(service_names._user_cmd_service_name, 
-                                      UserCmd, 
+        self._cmd_srv = rospy.Service(config._user_cmd_service_name,
+                                      UserCmd,
                                       self.user_cmd)
 
         # Configure grasping server
-        self._grasp_service = rospy.Service(service_names._grasp_service_name, 
+        self._grasp_service = rospy.Service(config._grasp_service_name,
                                             PandaGrasp,
                                             self.do_grasp)
 
         # Configure movement server
-        self._movement_server = rospy.Service(service_names._move_service_name, 
-                                              PandaMove, 
+        self._movement_server = rospy.Service(config._move_service_name,
+                                              PandaMove,
                                               self.go_to_pose)
 
 
         # Configure joint-based homing server
-        self._homing_server = rospy.Service(service_names._home_service_name,
-                                            Trigger, 
+        self._homing_server = rospy.Service(config._home_service_name,
+                                            Trigger,
                                             self.go_to_home_joints)
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
-        
+
         self._home_pose.orientation.x = 1.0
         self._home_pose.orientation.y = 0.0
         self._home_pose.orientation.z = 0.0
@@ -107,12 +129,12 @@ class PandaActionServer(object):
         # Alternative home pose in joint values
         # This home pose is the same defined in the libfranka tutorials
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        self._home_pose_joints[0:7] = [0, 
+        self._home_pose_joints[0:7] = [0,
                                        -math.pi/4,
                                        0,
                                        -3*math.pi/4,
-                                       0, 
-                                       math.pi/2, 
+                                       0,
+                                       math.pi/2,
                                        math.pi/4]
 
     def user_cmd(self, req):
@@ -370,7 +392,7 @@ class PandaActionServer(object):
         self._move_group.clear_pose_targets()
 
         return TriggerResponse(
-                                success = True, 
+                                success = True,
                                 message = "Arm homed"
         )
 
@@ -402,12 +424,13 @@ class PandaActionServer(object):
                                         avoid_collisions=True
                                         )
 
+        # Retime trajectory according to velocity/acceleration limits
         plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
                                                     plan,
-                                                    velocity_scaling_factor=0.2,
-                                                    acceleration_scaling_factor=0.2)
+                                                    velocity_scaling_factor=self._max_velocity_scaling_factor,
+                                                    acceleration_scaling_factor=self._max_acceleration_scaling_factor)
 
-        if fraction > 0.5:
+        if fraction > 0.8:
             print("moving robot arm. Planned " + str(fraction) + " of the trajectory")
             self._move_group.execute(plan, wait=True)
             self._move_group.stop()
@@ -449,20 +472,15 @@ class PandaActionServer(object):
 
 
 if __name__ == "__main__":
-    
+
     # Initialize the ROS node.
     rospy.init_node("panda_action_server")
 
     # Config
-    service_names = ServiceNames()
-    service_names._grasp_service_name       = "~panda_grasp"
-    service_names._move_service_name        = "~panda_move"
-    service_names._user_cmd_service_name    = "~panda_usr_cmd"
-    service_names._home_service_name        = "~panda_home"
-    publish_rviz = True  
+    config = NodeConfig()
 
     # Instantiate the action server.
-    grasp_planner = PandaActionServer(service_names, publish_rviz)
+    grasp_planner = PandaActionServer(config)
 
     # Spin forever.
     rospy.spin()
