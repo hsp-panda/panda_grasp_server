@@ -1,12 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import sys
+import math
 import copy
 import numpy as np
 import rospy
 import geometry_msgs
 import moveit_commander
 import moveit_msgs.msg
+from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix
 
 from panda_grasp_server.srv import PandaGrasp, PandaGraspRequest, PandaGraspResponse, UserCmd, PandaMove, PandaMoveRequest, PandaMoveResponse
@@ -28,10 +30,21 @@ def all_close(goal, actual, tolerance):
     return True
 
 
-class PandaGraspServer(object):
+class ServiceNames(object):
+
+    def __init__(self):
+
+        # Initialize names
+        self._user_cmd_service_name = "~user_cmd"
+        self._move_service_name = "~panda_move_pose"
+        self._grasp_service_name = "~panda_grasp"
+        self._home_service_name = "~panda_home"
+
+class PandaActionServer(object):
 
     def __init__(self, service_name, move_service_name, publish_rviz):
-        # --- configure moveit --- #
+        
+        # Configure moveit
         moveit_commander.roscpp_initialize(sys.argv)
         self._robot = moveit_commander.RobotCommander()
         self._group_name = "panda_arm"
@@ -58,26 +71,49 @@ class PandaGraspServer(object):
         self._scene = moveit_commander.PlanningSceneInterface()
         self._scene.remove_world_object()
 
-        # --- User input service --- #
-        self._cmd_srv = rospy.Service("PandaGraspServer/user_cmd", UserCmd, self.user_cmd)
+        # Configure user input server
+        self._cmd_srv = rospy.Service(service_names._user_cmd_service_name, 
+                                      UserCmd, 
+                                      self.user_cmd)
 
         # Configure grasping server
-        self._grasp_service = rospy.Service(service_name, PandaGrasp,
+        self._grasp_service = rospy.Service(service_names._grasp_service_name, 
+                                            PandaGrasp,
                                             self.do_grasp)
 
         # Configure movement server
-        self._movement_server = rospy.Service(move_service_name, PandaMove, self.go_to_pose)
+        self._movement_server = rospy.Service(service_names._move_service_name, 
+                                              PandaMove, 
+                                              self.go_to_pose)
 
+
+        # Configure joint-based homing server
+        self._homing_server = rospy.Service(service_names._home_service_name,
+                                            Trigger, 
+                                            self.go_to_home_joints)
+
+        # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
-        # top view
-        self._home_pose.orientation.x = 1.
+        
+        self._home_pose.orientation.x = 1.0
         self._home_pose.orientation.y = 0.0
-        self._home_pose.orientation.z = 0.
-        self._home_pose.orientation.w = 0.
+        self._home_pose.orientation.z = 0.0
+        self._home_pose.orientation.w = 0.0
 
         self._home_pose.position.x = 0.5
         self._home_pose.position.y = 0.0
         self._home_pose.position.z = 0.6
+
+        # Alternative home pose in joint values
+        # This home pose is the same defined in the libfranka tutorials
+        self._home_pose_joints = self._move_group.get_current_joint_values()
+        self._home_pose_joints[0:7] = [0, 
+                                       -math.pi/4,
+                                       0,
+                                       -3*math.pi/4,
+                                       0, 
+                                       math.pi/2, 
+                                       math.pi/4]
 
     def user_cmd(self, req):
         print("Received new command from user...")
@@ -360,17 +396,20 @@ class PandaGraspServer(object):
 
 
 if __name__ == "__main__":
+    
     # Initialize the ROS node.
-    rospy.init_node("panda_grasp_server")
+    rospy.init_node("panda_action_server")
 
-    # Get configs.
-    # rospy.get_param("~grasp_planner_service_name")
-    grasp_service_name  = "~panda_grasp"
-    move_service_name   = "~panda_move"
-    publish_rviz = True  # rospy.get_param("~publish_rviz")
+    # Config
+    service_names = ServiceNames()
+    service_names._grasp_service_name       = "~panda_grasp"
+    service_names._move_service_name        = "~panda_move"
+    service_names._user_cmd_service_name    = "~panda_usr_cmd"
+    service_names._home_service_name        = "~panda_home"
+    publish_rviz = True  
 
-    # Instantiate the grasp planner.
-    grasp_planner = PandaGraspServer(grasp_service_name, move_service_name, publish_rviz)
+    # Instantiate the action server.
+    grasp_planner = PandaActionServer(service_names, publish_rviz)
 
     # Spin forever.
     rospy.spin()
