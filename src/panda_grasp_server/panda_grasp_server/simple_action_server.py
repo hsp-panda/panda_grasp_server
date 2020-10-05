@@ -44,6 +44,7 @@ class NodeConfig(object):
         self._home_service_name = "~panda_home"
         self._move_wp_service_name = "~panda_move_wp"
         self._set_home_service_name = "~panda_set_home_pose"
+        self._stop_service_name = "~panda_stop"
 
         # Configure scene parameters
         self._table_height = 0.0 # z dimension, from the robot base ref frame
@@ -126,6 +127,11 @@ class PandaActionServer(object):
         self._wp_movement_server = rospy.Service(config._move_wp_service_name,
                                                 PandaMoveWaypoints,
                                                 self.execute_trajectory_callback)
+
+        # Configure motion stop server
+        self._movement_stop_server = rospy.Service(config._stop_service_name,
+                                                    Trigger,
+                                                    self.stop_motion_callback)
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -327,6 +333,16 @@ class PandaActionServer(object):
                 success=False,
                 message=msg
             )
+
+    def stop_motion_callback(self, req):
+
+        self._move_group.stop()
+        self._move_group_hand.stop()
+
+        return TriggerResponse(
+                    success=True,
+                    message="Motion stopped"
+        )
 
     # def execute_trajectory(self):
 
