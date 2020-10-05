@@ -43,9 +43,10 @@ class NodeConfig(object):
         self._grasp_service_name = "~panda_grasp"
         self._home_service_name = "~panda_home"
         self._move_wp_service_name = "~panda_move_wp"
+        self._set_home_service_name = "~panda_set_home_pose"
 
         # Configure scene parameters
-        self._table_height = None #maybe fetch from param server?
+        self._table_height = 0.0 # z dimension, from the robot base ref frame
         self._robot_workspace = None
         self._bench_dimensions = (0.6, 0.6, 0.6) # x y z
         self._bench_mount_point_xy = (0.2, 0.0) # x y wrt center of the bench
@@ -104,23 +105,27 @@ class PandaActionServer(object):
         # Configure grasping server
         self._grasp_service = rospy.Service(config._grasp_service_name,
                                             PandaGrasp,
-                                            self.do_grasp)
+                                            self.do_grasp_callback)
 
         # Configure movement server
         self._movement_server = rospy.Service(config._move_service_name,
                                               PandaMove,
-                                              self.go_to_pose)
+                                              self.go_to_pose_callback)
 
-
-        # Configure joint-based homing server
+        # Configure homing server
         self._homing_server = rospy.Service(config._home_service_name,
-                                            Trigger,
-                                            self.go_to_home_joints)
+                                            PandaHome,
+                                            self.go_home_callback)
+
+        # Configure homing pose setting server
+        self._set_home_pose_server = rospy.Service(config._set_home_service_name,
+                                                    PandaSetHome,
+                                                    self.set_home_pose_callback)
 
         # Configure trajectory movement server
         self._wp_movement_server = rospy.Service(config._move_wp_service_name,
                                                 PandaMoveWaypoints,
-                                                self.execute_trajectory)
+                                                self.execute_trajectory_callback)
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -145,57 +150,28 @@ class PandaActionServer(object):
                                        math.pi/2,
                                        math.pi/4]
 
-    def user_cmd(self, req):
-        print("Received new command from user...")
+        # Add table as a collision object
+        if config._table_height:
+            rospy.sleep(2)
+            table_pose = geometry_msgs.PoseStamped()
+            table_pose.header.frame_id = self._robot.get_planning_frame()
+            table.pose.position.x = 0.9
+            table.pose.position.y = 0.0
+            table.pose.position.z = config._table_height
+            self._scene.add_box("table", table_pose, (0.8, 0.8, 0.8))
 
-        cmd = req.cmd.data
+        # Add the workbench
+        rospy.sleep(2)
+        workbench_pose = geometry_msgs.PoseStamped()
+        workbench.header.frame_id = self._robot.get_planning_frame()
+        workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
+        workbench_pose.pose.position.y = config._bench_mount_point_xy[1]
+        workbench_pose.pose.position.z = -1.0
+        self._scene.add_box("workbench", workbench_pose, (0.8, 0.8, 0.8))
 
-        if cmd=="help":
-            print("available commands are:")
-            print("go_home\nset_home\njoints_state\npose_ee\nmove_gripper\nexecute_traj")
-            return True
-
-        elif cmd == "go_home":
-            self.go_home()
-            return True
-
-        elif cmd == "set_home":
-            pos, quat = self._get_pose_from_user()
-            if len(pos)==3 and len(quat)==4:
-                self.set_home(pos, quat)
-                return True
-            else:
-                return False
-
-        elif cmd == "joints_state":
-            joint_states = self.get_joints_state()
-            print("joint poses: ", joint_states)
-            gripper_poses = self.get_gripper_state()
-            print("gripper poses: ", gripper_poses)
-            return True
-
-        elif cmd == "pose_ee":
-            pos, quat = self.get_current_pose_EE()
-            print("current gripper pose: ")
-            print(pos)
-            print(quat)
-            return True
-        elif cmd == "move_gripper":
-            user_cmd = raw_input("Set desired gripper width:")
-            width = float(user_cmd)
-            print("required width ", width)
-
-            self.command_gripper(width)
-            return True
-        elif cmd == "execute_traj":
-            print("executing trajectory")
-            self.execute_trajectory()
-            return True
-        else:
-            print("unvalid command ", cmd)
-            return False
 
     def set_home(self, pos, quat):
+
         self._home_pose.orientation.x = quat[0]
         self._home_pose.orientation.y = quat[1]
         self._home_pose.orientation.z = quat[2]
@@ -205,7 +181,229 @@ class PandaActionServer(object):
         self._home_pose.position.y = pos[1]
         self._home_pose.position.z = pos[2]
 
-    def do_grasp(self, req):
+    def set_home_pose_callback(self, req):
+
+        # Callback for setting home state of the robot
+
+        use_joint_values = req.use_joints
+
+        ok_msg = (req.home_joints is not None) or (req,target_pose.pose is not None)
+
+        if ok_msg:
+            if use_joint_values:
+                self._home_pose_joints[0:7] = req.home_joints
+            else:
+                self._home_pose = req.target_pose.pose
+            rospy.INFO("New homing pose set")
+            return True
+        else:
+            return False
+
+    def go_home(self, use_joints=False):
+
+        # Move the robot in home pose
+        # use_joints flag uses the joint config instead of pose
+        if use_joints:
+            self._move_group.set_joint_value_target(self._home_pose_joints)
+        else:
+            self._move_group.set_pose_target(self._home_pose)
+        self._move_group.go(wait=True)
+        self._move_group.stop()
+        self._move_group.clear_pose_targets()
+        self.open_gripper()
+
+    def close_gripper(self):
+        joint_goal = self._move_group_hand.get_current_joint_values()
+        if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
+            self.command_gripper(0.0)
+        else:
+            print("gripper already closed")
+
+    def open_gripper(self):
+        joint_goal = self._move_group_hand.get_current_joint_values()
+        if joint_goal[0] <= 0.03 and joint_goal[1] <= 0.03:
+            self.command_gripper(0.08)
+        else:
+            print("gripper already open")
+
+    def command_gripper(self, gripper_width):
+
+        joint_goal = self._move_group_hand.get_current_joint_values()
+        joint_goal[0] = gripper_width/2.
+        joint_goal[1] = gripper_width/2.
+
+        self._move_group_hand.go(joint_goal, wait=True)
+        self._move_group_hand.stop()
+        current_joints = self._move_group_hand.get_current_joint_values()
+        return all_close(joint_goal, current_joints, 0.001)
+
+    def get_gripper_state(self):
+        joint_poses = self._move_group_hand.get_current_joint_values()
+        return joint_poses
+
+    def get_joints_state(self):
+        joint_poses = self._move_group.get_current_joint_values()
+        return joint_poses
+
+    def get_current_pose_EE(self):
+
+        quaternion = [self._move_group.get_current_pose().pose.orientation.x,
+                      self._move_group.get_current_pose().pose.orientation.y,
+                      self._move_group.get_current_pose().pose.orientation.z,
+                      self._move_group.get_current_pose().pose.orientation.w]
+
+        position = [self._move_group.get_current_pose().pose.position.x,
+                    self._move_group.get_current_pose().pose.position.y,
+                    self._move_group.get_current_pose().pose.position.z]
+
+        # print("current gripper pose is:")
+        # print(position)
+        # print(quaternion)
+        return [position, quaternion]
+
+    def go_to_pose_callback(self, req):
+
+        target_pose = self._move_group.get_current_pose()
+        target_pose.pose.position = req.target_pose.pose.position
+        target_pose.pose.orientation = req.target_pose.pose.orientation
+        self._move_group.set_pose_target(target_pose)
+
+        plan = self._move_group.go(wait=True)
+
+        self._move_group.stop()
+        self._move_group.clear_pose_targets()
+
+        return True
+
+    def go_home_callback(self, req):
+
+        use_joint_values = req.use_joint_values
+
+        self.go_home(use_joints=use_joint_values)
+
+        return True
+
+    def execute_trajectory_callback(self, req):
+
+        # Plan and execute trajectory based on an array of pose waypoints
+        waypoints = []
+        pose_start = self._move_group.get_current_pose().pose
+        waypoints.append(pose_start)
+
+        # Add all the waypoints from the message
+        for wp in req.pose_waypoints.poses:
+            waypoints.append(wp)
+
+        # Plan
+        (plan, fraction) = self._move_group.compute_cartesian_path(
+                                waypoints=waypoints,
+                                eef_step=0.01,
+                                jump_threshold=0.0,
+                                avoid_collisions=True
+                                )
+
+        # Retime trajectory according to velocity/acceleration limits
+        plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
+                                        plan,
+                                        velocity_scaling_factor=self._max_velocity_scaling_factor,
+                                        acceleration_scaling_factor=self._max_acceleration_scaling_factor)
+
+        if fraction > 0.99:
+            msg = "Moving robot arm. Planned " + str(fraction) + " of the trajectory"
+            print(msg)
+            self._move_group.execute(plan, wait=True)
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            return PandaMoveWaypointResponse(
+                success=True,
+                message=msg
+            )
+        else:
+            msg = "Plan failed. Planned " + str(fraction*100) + "% of the trajectory"
+            print(msg)
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            return PandaMoveWaypointResponse(
+                success=False,
+                message=msg
+            )
+
+    # def execute_trajectory(self):
+
+    #     # Execute trajectory around home state
+
+    #     self.go_home_joints(None)
+    #     pose_start = self._move_group.get_current_pose().pose
+    #     pose_wp1 = self._move_group.get_current_pose().pose
+    #     pose_wp2 = self._move_group.get_current_pose().pose
+    #     pose_wp3 = self._move_group.get_current_pose().pose
+
+    #     pose_wp1.position.x += 0.2
+    #     pose_wp2.position.x += 0.2
+    #     pose_wp2.position.y += 0.2
+    #     pose_wp3.position.z += 0.2
+
+    #     waypoints = []
+    #     waypoints.append(pose_start)
+    #     waypoints.append(pose_wp1)
+    #     waypoints.append(pose_wp2)
+    #     waypoints.append(pose_wp3)
+    #     waypoints.append(pose_start)
+
+    #     (plan, fraction) = self._move_group.compute_cartesian_path(
+    #                                     waypoints=waypoints,
+    #                                     eef_step=0.01,
+    #                                     jump_threshold=0.0,
+    #                                     avoid_collisions=True
+    #                                     )
+
+    #     # Retime trajectory according to velocity/acceleration limits
+    #     plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
+    #                                                 plan,
+    #                                                 velocity_scaling_factor=self._max_velocity_scaling_factor,
+    #                                                 acceleration_scaling_factor=self._max_acceleration_scaling_factor)
+
+    #     if fraction > 0.8:
+    #         print("moving robot arm. Planned " + str(fraction) + " of the trajectory")
+    #         self._move_group.execute(plan, wait=True)
+    #         self._move_group.stop()
+    #         self._move_group.clear_pose_targets()
+    #         return True
+    #     else:
+    #         print("plan failed")
+    #         self._move_group.stop()
+    #         self._move_group.clear_pose_targets()
+    #         return False
+
+    def _get_pose_from_user(self):
+        position = [0]*3
+        quaternion = [0, 1, 0, 0]
+
+        user_cmd = raw_input("Set desired EE home position as 'x y z':")
+        user_cmd = user_cmd.split()
+        if not len(user_cmd) == 3:
+            user_cmd = input("Wrong input. Try again: ")
+            user_cmd = user_cmd.split()
+            if not len(user_cmd) == 3:
+                return [], []
+
+        for i, cmd in enumerate(user_cmd):
+            position[i] = float(cmd)
+
+        user_cmd = raw_input("Set desired EE home orientation as quaternion 'x y z w': ")
+        user_cmd = user_cmd.split()
+        if not len(user_cmd) == 4:
+            user_cmd = input("Wrong input. Try again: ")
+            user_cmd = user_cmd.split()
+            if not len(user_cmd) == 4:
+                return [], []
+
+        for i, cmd in enumerate(user_cmd):
+            quaternion[i] = float(cmd)
+
+        return position, quaternion
+
+    def do_grasp_callback(self, req):
         rospy.loginfo('%s: Executing grasp' %
                       (self._grasp_service.resolved_name))
 
@@ -323,206 +521,55 @@ class PandaActionServer(object):
 
         return success
 
-    def go_home(self):
-        self._move_group.set_pose_target(self._home_pose)
-        self._move_group.go(wait=True)
-        self._move_group.stop()
-        self._move_group.clear_pose_targets()
+    def user_cmd_callback(self, req):
+        print("Received new command from user...")
 
-    def close_gripper(self):
-        joint_goal = self._move_group_hand.get_current_joint_values()
-        if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
-            self.command_gripper(0.0)
-        else:
-            print("gripper already closed")
+        cmd = req.cmd.data
 
-    def open_gripper(self):
-        joint_goal = self._move_group_hand.get_current_joint_values()
-        if joint_goal[0] <= 0.03 and joint_goal[1] <= 0.03:
-            self.command_gripper(0.08)
-        else:
-            print("gripper already open")
+        if cmd=="help":
+            print("available commands are:")
+            print("go_home\nset_home\njoints_state\npose_ee\nmove_gripper\nexecute_traj")
+            return True
 
-    def command_gripper(self, gripper_width):
+        elif cmd == "go_home":
+            self.go_home()
+            return True
 
-        joint_goal = self._move_group_hand.get_current_joint_values()
-        joint_goal[0] = gripper_width/2.
-        joint_goal[1] = gripper_width/2.
+        elif cmd == "set_home":
+            pos, quat = self._get_pose_from_user()
+            if len(pos)==3 and len(quat)==4:
+                self.set_home(pos, quat)
+                return True
+            else:
+                return False
 
-        self._move_group_hand.go(joint_goal, wait=True)
-        self._move_group_hand.stop()
-        current_joints = self._move_group_hand.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.001)
+        elif cmd == "joints_state":
+            joint_states = self.get_joints_state()
+            print("joint poses: ", joint_states)
+            gripper_poses = self.get_gripper_state()
+            print("gripper poses: ", gripper_poses)
+            return True
 
-    def get_gripper_state(self):
-        joint_poses = self._move_group_hand.get_current_joint_values()
-        return joint_poses
+        elif cmd == "pose_ee":
+            pos, quat = self.get_current_pose_EE()
+            print("current gripper pose: ")
+            print(pos)
+            print(quat)
+            return True
+        elif cmd == "move_gripper":
+            user_cmd = raw_input("Set desired gripper width:")
+            width = float(user_cmd)
+            print("required width ", width)
 
-    def get_joints_state(self):
-        joint_poses = self._move_group.get_current_joint_values()
-        return joint_poses
-
-    def get_current_pose_EE(self):
-
-        quaternion = [self._move_group.get_current_pose().pose.orientation.x,
-                      self._move_group.get_current_pose().pose.orientation.y,
-                      self._move_group.get_current_pose().pose.orientation.z,
-                      self._move_group.get_current_pose().pose.orientation.w]
-
-        position = [self._move_group.get_current_pose().pose.position.x,
-                    self._move_group.get_current_pose().pose.position.y,
-                    self._move_group.get_current_pose().pose.position.z]
-
-        # print("current gripper pose is:")
-        # print(position)
-        # print(quaternion)
-        return [position, quaternion]
-
-    def go_to_pose(self, req):
-
-        target_pose = self._move_group.get_current_pose()
-        target_pose.pose.position = req.target_pose.pose.position
-        target_pose.pose.orientation = req.target_pose.pose.orientation
-        self._move_group.set_pose_target(target_pose)
-
-        plan = self._move_group.go(wait=True)
-
-        self._move_group.stop()
-        self._move_group.clear_pose_targets()
-
-        return True
-
-    def go_to_home_joints(self, req):
-
-        self._move_group.set_joint_value_target(self._home_pose_joints)
-        self._move_group.go(wait=True)
-        self._move_group.stop()
-        self._move_group.clear_pose_targets()
-
-        return TriggerResponse(
-                                success = True,
-                                message = "Arm homed"
-        )
-
-    def execute_trajectory(self, req):
-
-        # Plan and execute trajectory based on an array of pose waypoints
-        waypoints = []
-        pose_start = self._move_group.get_current_pose().pose
-        waypoints.append(pose_start)
-
-        # Add all the waypoints from the message
-        for wp in req.pose_waypoints.poses:
-            waypoints.append(wp)
-
-        # Plan
-        (plan, fraction) = self._move_group.compute_cartesian_path(
-                                waypoints=waypoints,
-                                eef_step=0.01,
-                                jump_threshold=0.0,
-                                avoid_collisions=True
-                                )
-
-        # Retime trajectory according to velocity/acceleration limits
-        plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
-                                        plan,
-                                        velocity_scaling_factor=self._max_velocity_scaling_factor,
-                                        acceleration_scaling_factor=self._max_acceleration_scaling_factor)
-
-        if fraction > 0.99:
-            msg = "Moving robot arm. Planned " + str(fraction) + " of the trajectory"
-            print(msg)
-            self._move_group.execute(plan, wait=True)
-            self._move_group.stop()
-            self._move_group.clear_pose_targets()
-            return PandaMoveWaypointResponse(
-                success=True,
-                message=msg
-            )
-        else:
-            msg = "Plan failed. Planned " + str(fraction*100) + "% of the trajectory"
-            print(msg)
-            self._move_group.stop()
-            self._move_group.clear_pose_targets()
-            return PandaMoveWaypointResponse(
-                success=False,
-                message=msg
-            )
-
-    def execute_trajectory(self):
-
-        # Execute trajectory around home state
-
-        self.go_to_home_joints(None)
-        pose_start = self._move_group.get_current_pose().pose
-        pose_wp1 = self._move_group.get_current_pose().pose
-        pose_wp2 = self._move_group.get_current_pose().pose
-        pose_wp3 = self._move_group.get_current_pose().pose
-
-        pose_wp1.position.x += 0.2
-        pose_wp2.position.x += 0.2
-        pose_wp2.position.y += 0.2
-        pose_wp3.position.z += 0.2
-
-        waypoints = []
-        waypoints.append(pose_start)
-        waypoints.append(pose_wp1)
-        waypoints.append(pose_wp2)
-        waypoints.append(pose_wp3)
-        waypoints.append(pose_start)
-
-        (plan, fraction) = self._move_group.compute_cartesian_path(
-                                        waypoints=waypoints,
-                                        eef_step=0.01,
-                                        jump_threshold=0.0,
-                                        avoid_collisions=True
-                                        )
-
-        # Retime trajectory according to velocity/acceleration limits
-        plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
-                                                    plan,
-                                                    velocity_scaling_factor=self._max_velocity_scaling_factor,
-                                                    acceleration_scaling_factor=self._max_acceleration_scaling_factor)
-
-        if fraction > 0.8:
-            print("moving robot arm. Planned " + str(fraction) + " of the trajectory")
-            self._move_group.execute(plan, wait=True)
-            self._move_group.stop()
-            self._move_group.clear_pose_targets()
+            self.command_gripper(width)
+            return True
+        elif cmd == "execute_traj":
+            print("executing trajectory")
+            self.execute_trajectory()
             return True
         else:
-            print("plan failed")
-            self._move_group.stop()
-            self._move_group.clear_pose_targets()
+            print("unvalid command ", cmd)
             return False
-
-    def _get_pose_from_user(self):
-        position = [0]*3
-        quaternion = [0, 1, 0, 0]
-
-        user_cmd = raw_input("Set desired EE home position as 'x y z':")
-        user_cmd = user_cmd.split()
-        if not len(user_cmd) == 3:
-            user_cmd = input("Wrong input. Try again: ")
-            user_cmd = user_cmd.split()
-            if not len(user_cmd) == 3:
-                return [], []
-
-        for i, cmd in enumerate(user_cmd):
-            position[i] = float(cmd)
-
-        user_cmd = raw_input("Set desired EE home orientation as quaternion 'x y z w': ")
-        user_cmd = user_cmd.split()
-        if not len(user_cmd) == 4:
-            user_cmd = input("Wrong input. Try again: ")
-            user_cmd = user_cmd.split()
-            if not len(user_cmd) == 4:
-                return [], []
-
-        for i, cmd in enumerate(user_cmd):
-            quaternion[i] = float(cmd)
-
-        return position, quaternion
 
 
 if __name__ == "__main__":
