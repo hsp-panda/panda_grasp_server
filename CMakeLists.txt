@@ -60,6 +60,8 @@ add_service_files(
   FILES
   PandaGrasp.srv
   PandaMove.srv
+  PandaHome.srv
+  PandaSetHome.srv
   UserCmd.srv
   PandaMoveWaypoints.srv
 )
