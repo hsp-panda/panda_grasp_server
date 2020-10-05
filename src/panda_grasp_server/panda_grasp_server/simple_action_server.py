@@ -11,10 +11,13 @@ import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix
 
-from panda_grasp_server.srv import PandaGrasp, PandaGraspRequest, PandaGraspResponse,
-                                UserCmd,
-                                PandaMove, PandaMoveRequest, PandaMoveResponse,
-                                PandaMoveWaypoints, PandaMoveWaypointsRequest, PandaMoveWaypointsResponse
+from panda_grasp_server.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
+                                    UserCmd,
+                                    PandaMove, PandaMoveRequest, PandaMoveResponse,
+                                    PandaMoveWaypoints, PandaMoveWaypointsRequest, PandaMoveWaypointsResponse,
+                                    PandaHome, PandaHomeRequest, PandaHomeResponse,
+                                    PandaSetHome, PandaSetHomeRequest, PandaSetHomeResponse
+                                    )
 
 
 def all_close(goal, actual, tolerance):
@@ -47,7 +50,8 @@ class NodeConfig(object):
         self._stop_service_name = "~panda_stop"
 
         # Configure scene parameters
-        self._table_height = 0.0 # z dimension, from the robot base ref frame
+        self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
+        self._table_size = (2.0, 2.0, 0.8) # x y z size of table block
         self._robot_workspace = None
         self._bench_dimensions = (0.6, 0.6, 0.6) # x y z
         self._bench_mount_point_xy = (0.2, 0.0) # x y wrt center of the bench
@@ -101,7 +105,7 @@ class PandaActionServer(object):
         # Configure user input server
         self._cmd_srv = rospy.Service(config._user_cmd_service_name,
                                       UserCmd,
-                                      self.user_cmd)
+                                      self.user_cmd_callback)
 
         # Configure grasping server
         self._grasp_service = rospy.Service(config._grasp_service_name,
@@ -157,22 +161,22 @@ class PandaActionServer(object):
                                        math.pi/4]
 
         # Add table as a collision object
-        if config._table_height:
+        if config._table_height is not None:
             rospy.sleep(2)
-            table_pose = geometry_msgs.PoseStamped()
+            table_pose = geometry_msgs.msg.PoseStamped()
             table_pose.header.frame_id = self._robot.get_planning_frame()
-            table.pose.position.x = 0.9
-            table.pose.position.y = 0.0
-            table.pose.position.z = config._table_height
-            self._scene.add_box("table", table_pose, (0.8, 0.8, 0.8))
+            table_pose.pose.position.x = 0.2 + config._table_size[0]/2
+            table_pose.pose.position.y = 0.0 
+            table_pose.pose.position.z = config._table_height - config._table_size[2]/2
+            self._scene.add_box("table", table_pose, config._table_size)
 
         # Add the workbench
         rospy.sleep(2)
-        workbench_pose = geometry_msgs.PoseStamped()
-        workbench.header.frame_id = self._robot.get_planning_frame()
+        workbench_pose = geometry_msgs.msg.PoseStamped()
+        workbench_pose.header.frame_id = self._robot.get_planning_frame()
         workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
         workbench_pose.pose.position.y = config._bench_mount_point_xy[1]
-        workbench_pose.pose.position.z = -1.0
+        workbench_pose.pose.position.z = -0.50
         self._scene.add_box("workbench", workbench_pose, (0.8, 0.8, 0.8))
 
 
@@ -193,14 +197,14 @@ class PandaActionServer(object):
 
         use_joint_values = req.use_joints
 
-        ok_msg = (req.home_joints is not None) or (req,target_pose.pose is not None)
+        ok_msg = (req.home_joints is not None) or (req.home_pose.pose is not None)
 
         if ok_msg:
             if use_joint_values:
                 self._home_pose_joints[0:7] = req.home_joints
             else:
-                self._home_pose = req.target_pose.pose
-            rospy.INFO("New homing pose set")
+                self._home_pose = req.home_pose.pose
+            rospy.loginfo("New homing pose set")
             return True
         else:
             return False
