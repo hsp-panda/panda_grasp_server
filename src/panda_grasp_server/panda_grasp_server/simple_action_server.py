@@ -166,7 +166,7 @@ class PandaActionServer(object):
             table_pose = geometry_msgs.msg.PoseStamped()
             table_pose.header.frame_id = self._robot.get_planning_frame()
             table_pose.pose.position.x = 0.2 + config._table_size[0]/2
-            table_pose.pose.position.y = 0.0 
+            table_pose.pose.position.y = 0.0
             table_pose.pose.position.z = config._table_height - config._table_size[2]/2
             self._scene.add_box("table", table_pose, config._table_size)
 
@@ -176,7 +176,7 @@ class PandaActionServer(object):
         workbench_pose.header.frame_id = self._robot.get_planning_frame()
         workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
         workbench_pose.pose.position.y = config._bench_mount_point_xy[1]
-        workbench_pose.pose.position.z = -0.50
+        workbench_pose.pose.position.z = -0.42
         self._scene.add_box("workbench", workbench_pose, (0.8, 0.8, 0.8))
 
 
