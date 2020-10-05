@@ -16,7 +16,8 @@ from panda_grasp_server.srv import (PandaGrasp, PandaGraspRequest, PandaGraspRes
                                     PandaMove, PandaMoveRequest, PandaMoveResponse,
                                     PandaMoveWaypoints, PandaMoveWaypointsRequest, PandaMoveWaypointsResponse,
                                     PandaHome, PandaHomeRequest, PandaHomeResponse,
-                                    PandaSetHome, PandaSetHomeRequest, PandaSetHomeResponse
+                                    PandaSetHome, PandaSetHomeRequest, PandaSetHomeResponse,
+                                    PandaGripperCommand, PandaGripperCommandRequest, PandaGripperCommandResponse
                                     )
 
 
@@ -48,6 +49,7 @@ class NodeConfig(object):
         self._move_wp_service_name = "~panda_move_wp"
         self._set_home_service_name = "~panda_set_home_pose"
         self._stop_service_name = "~panda_stop"
+        self._gripper_cmd_service_name = "~panda_gripper_cmd"
 
         # Configure scene parameters
         self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
@@ -136,6 +138,11 @@ class PandaActionServer(object):
         self._movement_stop_server = rospy.Service(config._stop_service_name,
                                                     Trigger,
                                                     self.stop_motion_callback)
+
+        # Configure gripper closing server
+        self._gripper_cmd_server = rospy.Service(config._gripper_cmd_service_name,
+                                                    PandaGripperCommand,
+                                                    self.gripper_command_callback)
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -292,6 +299,11 @@ class PandaActionServer(object):
         self.go_home(use_joints=use_joint_values)
 
         return True
+
+    def gripper_command_callback(self, req):
+
+        width = abs(req.width) if req.width < 0.10 else 0.10
+        return self.command_gripper(width)
 
     def execute_trajectory(self, waypoints):
 

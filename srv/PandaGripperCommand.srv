@@ -1,0 +1,5 @@
+# Request
+float64 width
+---
+# Reply
+bool success

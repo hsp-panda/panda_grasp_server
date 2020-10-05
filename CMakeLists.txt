@@ -64,6 +64,7 @@ add_service_files(
   PandaSetHome.srv
   UserCmd.srv
   PandaMoveWaypoints.srv
+  PandaGripperCommand.srv
 )
 
 ## Generate actions in the 'action' folder
