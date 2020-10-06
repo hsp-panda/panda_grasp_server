@@ -1,0 +1,3 @@
+float64[7] joints_state
+float64 gripper_state
+geometry_msgs/PoseStamped eef_state

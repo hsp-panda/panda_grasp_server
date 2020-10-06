@@ -11,17 +11,22 @@ import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix
 
+from panda_grasp_server.msg import PandaState
+
 from panda_grasp_server.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
                                     UserCmd,
                                     PandaMove, PandaMoveRequest, PandaMoveResponse,
                                     PandaMoveWaypoints, PandaMoveWaypointsRequest, PandaMoveWaypointsResponse,
                                     PandaHome, PandaHomeRequest, PandaHomeResponse,
                                     PandaSetHome, PandaSetHomeRequest, PandaSetHomeResponse,
-                                    PandaGripperCommand, PandaGripperCommandRequest, PandaGripperCommandResponse
+                                    PandaGripperCommand, PandaGripperCommandRequest, PandaGripperCommandResponse,
+                                    PandaGetState, PandaGetStateRequest, PandaGetStateResponse
                                     )
 
 
 def all_close(goal, actual, tolerance):
+
+    # method to ascertain if a joint goal has been reached within some tolerance
 
     all_equal = True
     if type(goal) is list:
@@ -50,6 +55,7 @@ class NodeConfig(object):
         self._set_home_service_name = "~panda_set_home_pose"
         self._stop_service_name = "~panda_stop"
         self._gripper_cmd_service_name = "~panda_gripper_cmd"
+        self._get_robot_state_service_name = "~panda_get_state"
 
         # Configure scene parameters
         self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
@@ -144,6 +150,11 @@ class PandaActionServer(object):
                                                     PandaGripperCommand,
                                                     self.gripper_command_callback)
 
+        # Configure get status server
+        self._get_robot_state_server = rospy.Service(config._set_home_service_name,
+                                                    PandaGetState,
+                                                    self.get_state_callback)
+
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
 
@@ -232,16 +243,18 @@ class PandaActionServer(object):
     def close_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
         if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
-            self.command_gripper(0.0)
+            return self.command_gripper(0.0)
         else:
             rospy.loginfo("gripper already closed")
+            return False
 
     def open_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
         if joint_goal[0] <= 0.03 and joint_goal[1] <= 0.03:
-            self.command_gripper(0.08)
+            return self.command_gripper(0.08)
         else:
             rospy.loginfo("gripper already open")
+            return False
 
     def command_gripper(self, gripper_width):
 
@@ -302,8 +315,36 @@ class PandaActionServer(object):
 
     def gripper_command_callback(self, req):
 
-        width = abs(req.width) if req.width < 0.10 else 0.10
-        return self.command_gripper(width)
+        # Handle weird command
+        if req.close_gripper and req.open_gripper:
+            rospy.loginfo("Gripper command invalid. No operation will be performed")
+            return False
+
+        if req.close_gripper:
+            return self.close_gripper()
+        elif req.open_gripper:
+            return self.open_gripper()
+        else:
+            width = abs(req.width) if req.width < 0.10 else 0.10
+            return self.command_gripper(width)
+
+    def get_state_callback(self, req):
+
+        # Return the state of the robot joints, gripper width and eef pose
+        robot_state = PandaState()
+
+        # EEF pose
+        robot_state.eef_state.frame_id = self._robot.get_planning_frame()
+        robot_state.eef_state.pose = self._move_group.get_current_pose()
+
+        # Joints state
+        robot_state.joints_state = self._move_group.get_current_joint_values()
+
+        # Gripper width
+        width = self._move_group_hand.get_current_joint_values()[0] + self._move_group_hand.get_current_joint_values()[1]
+        robot_state.gripper_state = width
+
+        return PandaGetStateResponse(robot_state=robot_state)
 
     def execute_trajectory(self, waypoints):
 
