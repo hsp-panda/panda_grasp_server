@@ -20,7 +20,8 @@ from panda_grasp_server.srv import (PandaGrasp, PandaGraspRequest, PandaGraspRes
                                     PandaHome, PandaHomeRequest, PandaHomeResponse,
                                     PandaSetHome, PandaSetHomeRequest, PandaSetHomeResponse,
                                     PandaGripperCommand, PandaGripperCommandRequest, PandaGripperCommandResponse,
-                                    PandaGetState, PandaGetStateRequest, PandaGetStateResponse
+                                    PandaGetState, PandaGetStateRequest, PandaGetStateResponse,
+                                    PandaSetVelAccelScalingFactors, PandaSetVelAccelScalingFactorsRequest, PandaSetVelAccelScalingFactorsResponse
                                     )
 
 
@@ -56,6 +57,7 @@ class NodeConfig(object):
         self._stop_service_name = "~panda_stop"
         self._gripper_cmd_service_name = "~panda_gripper_cmd"
         self._get_robot_state_service_name = "~panda_get_state"
+        self._set_scaling_factor_service_name = "~panda_set_scaling_factors"
 
         # Configure scene parameters
         self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
@@ -432,6 +434,23 @@ class PandaActionServer(object):
                     success=True,
                     message="Motion stopped"
         )
+
+    def set_vel_accel_scaling_factors(self, vel_scal_fac, acc_scal_fac):
+
+        # Set max velocity and acceleration scaling factors
+
+        self._max_velocity_scaling_factor = vel_scal_fac
+        self._max_acceleration_scaling_factor = acc_scal_fac
+
+        self._move_group.set_max_velocity_scaling_factor(vel_scal_fac)
+        self._move_group.set_max_acceleration_scaling_factor(acc_scal_fac)
+
+    def set_vel_accel_scaling_factor_callback(self, req):
+
+        self.set_vel_accel_scaling_factors(req.new_vel_scaling_factor,
+                                           req.new_acc_scaling_factor)
+
+        return True
 
     def _get_pose_from_user(self):
         position = [0]*3

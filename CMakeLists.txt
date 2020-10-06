@@ -65,6 +65,7 @@ add_service_files(
   PandaMoveWaypoints.srv
   PandaGripperCommand.srv
   PandaGetState.srv
+  PandaSetVelAccelScalingFactors.srv
 )
 
 ## Generate actions in the 'action' folder

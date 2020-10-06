@@ -1,0 +1,6 @@
+# request
+float64 new_accel_scaling_factor
+float64 new_vel_scaling_factor
+---
+# reply
+bool success
