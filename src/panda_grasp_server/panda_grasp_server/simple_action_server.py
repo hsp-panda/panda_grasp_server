@@ -433,53 +433,6 @@ class PandaActionServer(object):
                     message="Motion stopped"
         )
 
-    # def execute_trajectory(self):
-
-    #     # Execute trajectory around home state
-
-    #     self.go_home_joints(None)
-    #     pose_start = self._move_group.get_current_pose().pose
-    #     pose_wp1 = self._move_group.get_current_pose().pose
-    #     pose_wp2 = self._move_group.get_current_pose().pose
-    #     pose_wp3 = self._move_group.get_current_pose().pose
-
-    #     pose_wp1.position.x += 0.2
-    #     pose_wp2.position.x += 0.2
-    #     pose_wp2.position.y += 0.2
-    #     pose_wp3.position.z += 0.2
-
-    #     waypoints = []
-    #     waypoints.append(pose_start)
-    #     waypoints.append(pose_wp1)
-    #     waypoints.append(pose_wp2)
-    #     waypoints.append(pose_wp3)
-    #     waypoints.append(pose_start)
-
-    #     (plan, fraction) = self._move_group.compute_cartesian_path(
-    #                                     waypoints=waypoints,
-    #                                     eef_step=0.01,
-    #                                     jump_threshold=0.0,
-    #                                     avoid_collisions=True
-    #                                     )
-
-    #     # Retime trajectory according to velocity/acceleration limits
-    #     plan = self._move_group.retime_trajectory(self._robot.get_current_state(),
-    #                                                 plan,
-    #                                                 velocity_scaling_factor=self._max_velocity_scaling_factor,
-    #                                                 acceleration_scaling_factor=self._max_acceleration_scaling_factor)
-
-    #     if fraction > 0.8:
-    #         rospy.loginfo("moving robot arm. Planned " + str(fraction) + " of the trajectory")
-    #         self._move_group.execute(plan, wait=True)
-    #         self._move_group.stop()
-    #         self._move_group.clear_pose_targets()
-    #         return True
-    #     else:
-    #         rospy.loginfo("plan failed")
-    #         self._move_group.stop()
-    #         self._move_group.clear_pose_targets()
-    #         return False
-
     def _get_pose_from_user(self):
         position = [0]*3
         quaternion = [0, 1, 0, 0]
@@ -507,124 +460,6 @@ class PandaActionServer(object):
             quaternion[i] = float(cmd)
 
         return position, quaternion
-
-    # def do_grasp_callback(self, req):
-    #     rospy.loginfo('%s: Executing grasp' %
-    #                   (self._grasp_service.resolved_name))
-
-    #     # move fingers in pre grasp pose
-    #     # self.command_gripper(req.width.data)
-    #     self.open_gripper()
-
-    #     # --- define a pre-grasp point along the approach axis --- #
-    #     p1 = quaternion_matrix([0., 0., 0., 1.])
-    #     p1[:3, 3] = np.array([0., 0., -0.1])
-
-    #     # transform grasp in matrix notation
-    #     q_gp = req.grasp.pose.orientation
-    #     p_gp = req.grasp.pose.position
-    #     gp = quaternion_matrix([q_gp.x, q_gp.y, q_gp.z, q_gp.w])
-    #     gp[:3, 3] = np.array([p_gp.x, p_gp.y, p_gp.z])
-
-    #     # create pregrasp pose
-    #     pregrasp = np.matmul(gp, p1)
-    #     q_pregrasp = quaternion_from_matrix(pregrasp)
-
-    #     pregrasp_pose = geometry_msgs.msg.Pose()
-
-    #     pregrasp_pose.orientation.x = q_pregrasp[0]
-    #     pregrasp_pose.orientation.y = q_pregrasp[1]
-    #     pregrasp_pose.orientation.z = q_pregrasp[2]
-    #     pregrasp_pose.orientation.w = q_pregrasp[3]
-
-    #     pregrasp_pose.position.x = pregrasp[0, 3]
-    #     pregrasp_pose.position.y = pregrasp[1, 3]
-    #     pregrasp_pose.position.z = pregrasp[2, 3]
-
-    #     rospy.loginfo("pregrasp")
-
-    #     self._move_group.set_pose_target(pregrasp_pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-    #     rospy.loginfo("grasp pose ")
-    #     rospy.loginfo(req.grasp.pose)
-
-    #     self._move_group.set_pose_target(req.grasp.pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-
-    #     # --- Execute planned trajectory to grasp pose --- #
-    #     # self._move_group.execute(plan, wait=True)
-
-    #     # --- Close fingers to try the grasp --- #
-    #     ok = self.close_gripper()
-
-    #     rospy.loginfo("lift")
-    #     lift_pose = req.grasp.pose
-    #     lift_pose.position.z += 0.30
-
-    #     self._move_group.set_pose_target(lift_pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-    #     # --- Check if grasp was successful --- #
-    #     gripper_state = self.get_gripper_state()
-    #     success = False if sum(gripper_state) <= 0.01 else True
-    #     rospy.loginfo("gripper_state ", gripper_state)
-    #     rospy.loginfo("Grasp success? :", success)
-
-    #     # --- drop object out of workspace --- #
-    #     rospy.loginfo("gripper home")
-    #     next_pose = lift_pose
-    #     next_pose.orientation.x = 1
-    #     next_pose.orientation.y = 0
-    #     next_pose.orientation.z = 0
-    #     next_pose.orientation.w = 0
-
-    #     self._move_group.set_pose_target(next_pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-    #     rospy.loginfo("back/right")
-    #     next_pose.position.x = 0.4
-    #     next_pose.position.y = -0.4
-
-    #     self._move_group.set_pose_target(next_pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-    #     rospy.loginfo("down")
-    #     next_pose.position.z = 0.45
-
-    #     self._move_group.set_pose_target(next_pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-    #     # --- Open fingers to drop the object --- #
-    #     rospy.loginfo("release object")
-    #     ok = self.open_gripper()
-
-    #     rospy.loginfo("up")
-    #     next_pose.position.z = 0.60
-
-    #     self._move_group.set_pose_target(next_pose)
-    #     self._move_group.go(wait=True)
-    #     self._move_group.stop()
-    #     self._move_group.clear_pose_targets()
-
-    #     # --- go in home pose --- #
-    #     rospy.loginfo("home")
-    #     self.go_home()
-
-    #     return success
 
     def do_grasp_callback(self, req):
 
@@ -673,7 +508,7 @@ class PandaActionServer(object):
         # Close fingers to try the grasp
         ok = self.close_gripper()
 
-        rospy.loginfo("lift")
+        rospy.loginfo("Lifting")
         lift_pose = req.grasp.pose
         lift_pose.position.z += 0.30
 
