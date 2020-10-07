@@ -124,6 +124,10 @@ class PandaActionServer(object):
         self._move_group.set_max_velocity_scaling_factor(config._max_velocity_scaling_factor)
         self._move_group.set_max_acceleration_scaling_factor(config._max_acceleration_scaling_factor)
 
+        # Setting a lower speed for the gripper to mirror the actual one
+        self._move_group_hand.set_max_velocity_scaling_factor(0.1)
+        self._move_group_hand.set_max_acceleration_scaling_factor(0.1)
+
         self._move_group.set_planner_id("RRTkConfigDefault")
 
         # Display trajectories in Rviz
@@ -178,9 +182,14 @@ class PandaActionServer(object):
                                                     self.gripper_command_callback)
 
         # Configure get status server
-        self._get_robot_state_server = rospy.Service(config._set_home_service_name,
+        self._get_robot_state_server = rospy.Service(config._get_robot_state_service_name,
                                                     PandaGetState,
                                                     self.get_state_callback)
+
+        # Configure speed changing server
+        self._set_vel_accel_server = rospy.Service(config._set_scaling_factor_service_name,
+                                                PandaSetVelAccelScalingFactors,
+                                                self.set_vel_accel_scaling_factor_callback)
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -221,8 +230,8 @@ class PandaActionServer(object):
         workbench_pose.header.frame_id = self._robot.get_planning_frame()
         workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
         workbench_pose.pose.position.y = config._bench_mount_point_xy[1]
-        workbench_pose.pose.position.z = -0.42
-        self._scene.add_box("workbench", workbench_pose, (0.8, 0.8, 0.8))
+        workbench_pose.pose.position.z = - 0.1 - config._bench_dimensions[2]/2
+        self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
 
 
     def set_home(self, pos, quat):
@@ -325,12 +334,18 @@ class PandaActionServer(object):
         target_pose.pose.orientation = req.target_pose.pose.orientation
         self._move_group.set_pose_target(target_pose)
 
-        plan = self._move_group.go(wait=True)
+        plan = self._move_group.plan()
+        if plan.joint_trajectory.points:
+            rospy.loginfo("Executing motion")
+            move_success = self._move_group.execute(plan, wait=True)
+        else:
+            rospy.loginfo("Trajectory planning has failed")
+            move_success = False
 
         self._move_group.stop()
         self._move_group.clear_pose_targets()
 
-        return True
+        return move_success
 
     def go_home_callback(self, req):
 
@@ -361,8 +376,7 @@ class PandaActionServer(object):
         robot_state = PandaState()
 
         # EEF pose
-        robot_state.eef_state.frame_id = self._robot.get_planning_frame()
-        robot_state.eef_state.pose = self._move_group.get_current_pose()
+        robot_state.eef_state = self._move_group.get_current_pose()
 
         # Joints state
         robot_state.joints_state = self._move_group.get_current_joint_values()
@@ -455,6 +469,14 @@ class PandaActionServer(object):
         self._move_group.stop()
         self._move_group_hand.stop()
 
+        from franka_msgs.msg import ErrorRecoveryActionGoal
+
+        pub = rospy.Publisher("/franka_control/error_recovery/goal", ErrorRecoveryActionGoal, queue_size=10, latch=True)
+        msg = ErrorRecoveryActionGoal()
+        for i in range(10):
+            pub.publish(msg)
+            rospy.sleep(0.1)
+
         return TriggerResponse(
                     success=True,
                     message="Motion stopped"
@@ -473,7 +495,7 @@ class PandaActionServer(object):
     def set_vel_accel_scaling_factor_callback(self, req):
 
         self.set_vel_accel_scaling_factors(req.new_vel_scaling_factor,
-                                           req.new_acc_scaling_factor)
+                                           req.new_accel_scaling_factor)
 
         return True
 
@@ -552,6 +574,11 @@ class PandaActionServer(object):
         # Close fingers to try the grasp
         ok = self.close_gripper()
 
+        self._move_group.set_pose_target(pregrasp_pose)
+        self._move_group.go(wait=True)
+        self._move_group.stop()
+        self._move_group.clear_pose_targets()
+
         rospy.loginfo("Lifting")
         lift_pose = req.grasp.pose
         lift_pose.position.z += 0.30
@@ -564,8 +591,8 @@ class PandaActionServer(object):
         # Check if grasp was successful
         gripper_state = self.get_gripper_state()
         success = False if sum(gripper_state) <= 0.01 else True
-        rospy.loginfo("Gripper_state ", gripper_state)
-        rospy.loginfo("Grasp success? :", success)
+        rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
+        rospy.loginfo("Grasp success? :" + str(success))
 
         # Drop object out of workspace
         rospy.loginfo("Moving the object out of the workspace")
