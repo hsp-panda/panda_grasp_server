@@ -48,33 +48,58 @@ class NodeConfig(object):
     def __init__(self):
 
         # Configure service names
-        self._user_cmd_service_name = "~user_cmd"
-        self._move_service_name = "~panda_move_pose"
-        self._grasp_service_name = "~panda_grasp"
-        self._home_service_name = "~panda_home"
-        self._move_wp_service_name = "~panda_move_wp"
-        self._set_home_service_name = "~panda_set_home_pose"
-        self._stop_service_name = "~panda_stop"
-        self._gripper_cmd_service_name = "~panda_gripper_cmd"
-        self._get_robot_state_service_name = "~panda_get_state"
-        self._set_scaling_factor_service_name = "~panda_set_scaling_factors"
+        # self._user_cmd_service_name = "~user_cmd"
+        # self._move_service_name = "~panda_move_pose"
+        # self._grasp_service_name = "~panda_grasp"
+        # self._home_service_name = "~panda_home"
+        # self._move_wp_service_name = "~panda_move_wp"
+        # self._set_home_service_name = "~panda_set_home_pose"
+        # self._stop_service_name = "~panda_stop"
+        # self._gripper_cmd_service_name = "~panda_gripper_cmd"
+        # self._get_robot_state_service_name = "~panda_get_state"
+        # self._set_scaling_factor_service_name = "~panda_set_scaling_factors"
+
+        self._user_cmd_service_name = rospy.get_param("~service_names/user_cmd_service", "~user_cmd")
+        self._move_service_name = rospy.get_param("~service_names/panda_move_pose_service", "~panda_move_pose")
+        self._grasp_service_name = rospy.get_param("~service_names/panda_grasp_service", "~panda_grasp")
+        self._home_service_name = rospy.get_param("~service_names/panda_home_service", "~panda_home")
+        self._move_wp_service_name = rospy.get_param("~service_names/panda_move_wp_service", "~panda_move_wp")
+        self._set_home_service_name = rospy.get_param("~service_names/panda_set_home_pose_service", "~panda_set_home_pose")
+        self._stop_service_name = rospy.get_param("~service_names/panda_stop_service", "~panda_stop")
+        self._gripper_cmd_service_name = rospy.get_param("~service_names/panda_gripper_cmd_service", "~panda_gripper_cmd")
+        self._get_robot_state_service_name = rospy.get_param("~service_names/panda_get_state_service", "~panda_get_state")
+        self._set_scaling_factor_service_name = rospy.get_param("~service_names/panda_set_scaling_factors_service", "~panda_set_scaling_factors")
 
         # Configure scene parameters
-        self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
-        self._table_size = (2.0, 2.0, 0.8) # x y z size of table block
+        self._table_height = rospy.get_param("~workspace/table_height", 0.15) # z distance from upper side of the table block, from the robot base ref frame
+        self._table_size = rospy.get_param("~workspace/table_size", (2.0, 2.0, 0.8)) # x y z size of table block
         self._robot_workspace = None
-        self._bench_dimensions = (0.6, 0.6, 0.6) # x y z
-        self._bench_mount_point_xy = (0.2, 0.0) # x y wrt center of the bench
+        self._bench_dimensions = rospy.get_param("~workspace/bench_size", (0.6, 0.6, 0.6)) # x y z
+        self._bench_mount_point_xy = rospy.get_param("~workspace/bench_mount_xy", (0.2, 0.0)) # x y wrt center of the bench
+
+        # self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
+        # self._table_size = (2.0, 2.0, 0.8) # x y z size of table block
+        # self._robot_workspace = None
+        # self._bench_dimensions = (0.6, 0.6, 0.6) # x y z
+        # self._bench_mount_point_xy = (0.2, 0.0) # x y wrt center of the bench
+
 
         # Configure speed/accel scaling factors
-        self._max_velocity_scaling_factor = 0.3
-        self._max_acceleration_scaling_factor = 0.3
+        self._max_velocity_scaling_factor = rospy.get_param("~planning/max_vel_scaling_factor", 0.3)
+        self._max_acceleration_scaling_factor = rospy.get_param("~planning/max_acc_scaling_factor", 0.3)
+
+        # self._max_velocity_scaling_factor = 0.3
+        # self._max_acceleration_scaling_factor = 0.3
 
         # Configure planner ID
-        self._planner_id = "RRTkConfigDefault"
+        self._planner_id = rospy.get_param("~planning/planner_id", "RRTkConfigDefault")
+
+        # self._planner_id = "RRTkConfigDefault"
 
         # Enable Rviz visualization of trajectories
-        self._publish_rviz = True
+        self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
+
+        # self._publish_rviz = True
 
 
 class PandaActionServer(object):
@@ -635,7 +660,6 @@ class PandaActionServer(object):
         else:
             rospy.loginfo("unvalid command ", cmd)
             return False
-
 
 if __name__ == "__main__":
 
