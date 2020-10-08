@@ -230,31 +230,36 @@ class PandaActionServer(object):
         workbench_pose.header.frame_id = self._robot.get_planning_frame()
         workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
         workbench_pose.pose.position.y = config._bench_mount_point_xy[1]
-        workbench_pose.pose.position.z = - 0.1 - config._bench_dimensions[2]/2
-        self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
+        workbench_pose.pose.position.z = -config._bench_dimensions[2]/2
+        # Not sure if I need to add the box first
+        # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
+        self._scene.attach_box('panda_link0', 'workbench', pose=workbench.pose, size=config._bench_dimensions, touch_links=['panda_link0'])
+
 
         # Turn off collisions between link_0 and workbench
         #TODO: rewrite this!
-        from moveit_msgs.msg import PlanningScene, PlanningSceneComponents
-        from moveit_msgs.srv import GetPlanningScene
-        pub_planning_scene = rospy.Publisher('/planning_scene', PlanningScene, queue_size=10)
-        rospy.wait_for_service('/get_planning_scene', 10.0)
-        get_planning_scene = rospy.ServiceProxy('/get_planning_scene', GetPlanningScene)
-        request = PlanningSceneComponents(components=PlanningSceneComponents.ALLOWED_COLLISION_MATRIX)
-        response = get_planning_scene(request)
+        # from moveit_msgs.msg import PlanningScene, PlanningSceneComponents
+        # from moveit_msgs.srv import GetPlanningScene
+        # pub_planning_scene = rospy.Publisher('/planning_scene', PlanningScene, queue_size=10)
+        # rospy.wait_for_service('/get_planning_scene', 10.0)
+        # get_planning_scene = rospy.ServiceProxy('/get_planning_scene', GetPlanningScene)
+        # request = PlanningSceneComponents(components=PlanningSceneComponents.ALLOWED_COLLISION_MATRIX)
+        # response = get_planning_scene(request)
 
-        acm = response.scene.allowed_collision_matrix
-        if not 'workbench' in acm.default_entry_names:
-            # add button to allowed collision matrix
-            acm.default_entry_names += ['workbench']
-            acm.default_entry_values += [True]
+        # acm = response.scene.allowed_collision_matrix
+        # if not 'workbench' in acm.default_entry_names:
+        #     # add button to allowed collision matrix
+        #     acm.default_entry_names += ['workbench']
+        #     acm.default_entry_values += [True]
 
-            planning_scene_diff = PlanningScene(
-                    is_diff=True,
-                    allowed_collision_matrix=acm)
+        #     planning_scene_diff = PlanningScene(
+        #             is_diff=True,
+        #             allowed_collision_matrix=acm)
 
-            pub_planning_scene.publish(planning_scene_diff)
-            rospy.sleep(1.0) 
+        #     pub_planning_scene.publish(planning_scene_diff)
+        #     rospy.sleep(1.0)
+
+
 
 
 
