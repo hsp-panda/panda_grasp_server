@@ -352,16 +352,15 @@ class PandaActionServer(object):
         # rospy.loginfo(quaternion)
         return [position, quaternion]
 
-    def go_to_pose_callback(self, req):
+    def go_to_pose(self, target_pose, message=None):
 
-        target_pose = self._move_group.get_current_pose()
-        target_pose.pose.position = req.target_pose.pose.position
-        target_pose.pose.orientation = req.target_pose.pose.orientation
+        self._move_group.clear_pose_target()
         self._move_group.set_pose_target(target_pose)
+        plan = self._move_group.plan(target_pose)
 
-        plan = self._move_group.plan()
         if plan.joint_trajectory.points:
-            rospy.loginfo("Executing motion")
+            if message:
+                rospy.loginfo(str(message))
             move_success = self._move_group.execute(plan, wait=True)
         else:
             rospy.loginfo("Trajectory planning has failed")
@@ -369,6 +368,28 @@ class PandaActionServer(object):
 
         self._move_group.stop()
         self._move_group.clear_pose_targets()
+
+        return move_success
+
+    def go_to_pose_callback(self, req):
+
+        target_pose = self._move_group.get_current_pose()
+        target_pose.pose.position = req.target_pose.pose.position
+        target_pose.pose.orientation = req.target_pose.pose.orientation
+        # self._move_group.set_pose_target(target_pose)
+
+        # plan = self._move_group.plan()
+        # if plan.joint_trajectory.points:
+        #     rospy.loginfo("Executing motion")
+        #     move_success = self._move_group.execute(plan, wait=True)
+        # else:
+        #     rospy.loginfo("Trajectory planning has failed")
+        #     move_success = False
+
+        # self._move_group.stop()
+        # self._move_group.clear_pose_targets()
+
+        move_success = self.go_to_pose(target_pose, message='Executing motion')
 
         return move_success
 
@@ -586,80 +607,58 @@ class PandaActionServer(object):
         pregrasp_pose.position.y = pregrasp[1, 3]
         pregrasp_pose.position.z = pregrasp[2, 3]
 
-        # Plan and execute trajectory based on an array of pose waypoints
-        waypoints = []
-        pose_start = self._move_group.get_current_pose().pose
-        waypoints.append(pose_start)
-        waypoints.append(pregrasp_pose)
-        waypoints.append(req.grasp.pose)
-
-        if not self.execute_trajectory(waypoints):
+        if not self.go_home(use_joints=True):
             return False
 
-        # Close fingers to try the grasp
-        ok = self.close_gripper()
+        if not self.go_home:
+            return False
 
-        self._move_group.set_pose_target(pregrasp_pose)
-        self._move_group.go(wait=True)
-        self._move_group.stop()
-        self._move_group.clear_pose_targets()
+        if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
+            return False
 
-        rospy.loginfo("Lifting")
+        if not self.go_to_pose(req.grasp.pose, message="Moving to grasp pose"):
+            return False
+
+        if not self.close_gripper():
+            return False
+
+        if not self.go_to_pose(pregrasp_pose, message="Moving back from grasping pose"):
+            return False
+
         lift_pose = req.grasp.pose
         lift_pose.position.z += 0.30
 
-        self._move_group.set_pose_target(lift_pose)
-        self._move_group.go(wait=True)
-        self._move_group.stop()
-        self._move_group.clear_pose_targets()
+        if not self.go_to_pose(lift_pose, message="Lifting from grasping pose"):
+            return False
 
         # Check if grasp was successful
         gripper_state = self.get_gripper_state()
-        success = False if sum(gripper_state) <= 0.01 else True
+        grasp_success = False if sum(gripper_state) <= 0.01 else True
         rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
-        rospy.loginfo("Grasp success? :" + str(success))
+        rospy.loginfo("Grasp success? " + str(success))
 
-        # Drop object out of workspace
-        rospy.loginfo("Moving the object out of the workspace")
-        waypoints = []
-        pose_start = self._move_group.get_current_pose().pose
-        waypoints.append(pose_start)
-
+        # Move object out of workspace
         next_pose = lift_pose
         next_pose.orientation.x = 1
         next_pose.orientation.y = 0
         next_pose.orientation.z = 0
         next_pose.orientation.w = 0
 
-        waypoints.append(copy.deepcopy(next_pose))
+        if not self.go_to_pose(next_pose):
+            return False
 
         next_pose.position.x = 0.4
         next_pose.position.y = -0.4
-
-        waypoints.append(copy.deepcopy(next_pose))
-
         next_pose.position.z = 0.45
 
-        waypoints.append(copy.deepcopy(next_pose))
-
-        if not self.execute_trajectory(waypoints):
+        if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
             return False
 
-        # --- Open fingers to drop the object --- #
-        rospy.loginfo("Releasing object")
-        ok = self.open_gripper()
+        if not self.open_gripper():
+            return False
 
-        rospy.loginfo("up")
-        next_pose.position.z = 0.60
-
-        self._move_group.set_pose_target(next_pose)
-        self._move_group.go(wait=True)
-        self._move_group.stop()
-        self._move_group.clear_pose_targets()
-
-        # --- go in home pose --- #
-        rospy.loginfo("Homing")
-        self.go_home(use_joints=False)
+        if not self.go_home():
+            return False
 
         return True
 
