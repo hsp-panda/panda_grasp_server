@@ -233,7 +233,7 @@ class PandaActionServer(object):
         workbench_pose.pose.position.z = -config._bench_dimensions[2]/2
         # Not sure if I need to add the box first
         # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
-        self._scene.attach_box('panda_link0', 'workbench', pose=workbench.pose, size=config._bench_dimensions, touch_links=['panda_link0'])
+        self._scene.attach_box('panda_link0', 'workbench', pose=workbench_pose, size=config._bench_dimensions, touch_links=['panda_link0', 'panda_link1'])
 
 
         # Turn off collisions between link_0 and workbench
