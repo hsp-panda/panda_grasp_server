@@ -301,6 +301,8 @@ class PandaActionServer(object):
         self._move_group.clear_pose_targets()
         self.open_gripper()
 
+        return True
+
     def close_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
         if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
@@ -354,7 +356,7 @@ class PandaActionServer(object):
 
     def go_to_pose(self, target_pose, message=None):
 
-        self._move_group.clear_pose_target()
+        self._move_group.clear_pose_targets()
         self._move_group.set_pose_target(target_pose)
         plan = self._move_group.plan(target_pose)
 
@@ -610,7 +612,7 @@ class PandaActionServer(object):
         if not self.go_home(use_joints=True):
             return False
 
-        if not self.go_home:
+        if not self.go_home():
             return False
 
         if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
@@ -635,7 +637,7 @@ class PandaActionServer(object):
         gripper_state = self.get_gripper_state()
         grasp_success = False if sum(gripper_state) <= 0.01 else True
         rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
-        rospy.loginfo("Grasp success? " + str(success))
+        rospy.loginfo("Grasp success? " + str(grasp_success))
 
         # Move object out of workspace
         next_pose = lift_pose
