@@ -11,9 +11,9 @@ import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix
 
-from panda_grasp_server.msg import PandaState
+from panda_ros_common.msg import PandaState
 
-from panda_grasp_server.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
+from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
                                     UserCmd,
                                     PandaMove, PandaMoveRequest, PandaMoveResponse,
                                     PandaMoveWaypoints, PandaMoveWaypointsRequest, PandaMoveWaypointsResponse,
@@ -258,11 +258,6 @@ class PandaActionServer(object):
 
         #     pub_planning_scene.publish(planning_scene_diff)
         #     rospy.sleep(1.0)
-
-
-
-
-
 
     def set_home(self, pos, quat):
 
