@@ -75,7 +75,7 @@ class NodeConfig(object):
         self._table_size = rospy.get_param("~workspace/table_size", (2.0, 2.0, 0.8)) # x y z size of table block
         self._robot_workspace = None
         self._bench_dimensions = rospy.get_param("~workspace/bench_size", (0.6, 0.6, 0.6)) # x y z
-        self._bench_mount_point_xy = rospy.get_param("~workspace/bench_mount_xy", (0.2, 0.0)) # x y wrt center of the bench
+        self._bench_mount_point_xy = rospy.get_param("~workspace/bench_mount_xy", (0.1, 0.0)) # x y wrt center of the bench
 
         # self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
         # self._table_size = (2.0, 2.0, 0.8) # x y z size of table block
