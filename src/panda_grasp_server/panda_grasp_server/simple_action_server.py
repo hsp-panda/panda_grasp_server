@@ -113,7 +113,7 @@ class PandaActionServer(object):
         self._group_name = "panda_arm"
         self._move_group = moveit_commander.MoveGroupCommander(
             self._group_name)
-        self._move_group.set_end_effector_link("panda_hand")
+        self._move_group.set_end_effector_link("panda_tcp")
         self._eef_link = self._move_group.get_end_effector_link()
         self._move_group_hand = moveit_commander.MoveGroupCommander(
             "hand")
