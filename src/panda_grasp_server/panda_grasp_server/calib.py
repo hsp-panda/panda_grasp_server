@@ -9,7 +9,9 @@ import rospy
 from tf.transformations import quaternion_from_matrix
 from geometry_msgs.msg import Pose, PoseStamped
 from pyquaternion import Quaternion
-from panda_ros_common.srv import PandaMove, PandaHome, PandaHomeRequest
+from panda_ros_common.msg import PandaState
+from panda_ros_common.srv import PandaMove, PandaHome, PandaHomeRequest, PandaGetState
+from sensor_msgs.msg import Image
 
 def normalize_rows(mat_to_normalize):
 
@@ -69,7 +71,17 @@ if __name__ == '__main__':
     x_ax = np.cross(y_ax, z_ax)
     x_ax = normalize_rows(x_ax)
 
+    camera_image = None
+    eef_pose = None
+
+    # Define camera callback
+
+    def camera_data_callback(self, rgb):
+
+        camera_image = rgb
+
     br = tf.TransformBroadcaster()
+    rgb_sub = rospy.Subscriber('/camera/color/image_raw', Image, camera_data_callback)
 
     # Obtain poses as position + quaternion
     poses = []
@@ -121,26 +133,25 @@ if __name__ == '__main__':
 
         rospy.wait_for_service('panda_action_server/panda_move_pose')
         try:
-           move_to_pose = rospy.ServiceProxy('panda_action_server/panda_move_pose', PandaMove)
-           success = move_to_pose(pose)
-           if not success:
-               print("Pose unreachable. Proceeding with next pose")
+            move_to_pose = rospy.ServiceProxy('panda_action_server/panda_move_pose', PandaMove)
+            success = move_to_pose(pose)
+            if success:
+                get_robot_state = rospy.ServiceProxy('panda_action_server/panda_get_state', PandaGetState)
+                robot_state = get_robot_state()
+                eef_pose = robot_state.eef_state.pose
+                print(eef_pose)
+
+
+            else:
+                print("Pose unreachable. Proceeding with next pose")
+
+
+
+
+
         except rospy.ServiceException as e:
            print("Service call failed: %s"%e)
 
-        
-
-
-        # pose_quat = Quaternion(matrix=rot_matrix)
-
-
-
-    # fig = plt.figure()
-    # ax = fig.add_subplot(111, projection='3d')
-
-    # ax.scatter(x,y,z)
-
-    # plt.show()
 
 
 
