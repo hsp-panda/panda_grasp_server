@@ -596,26 +596,31 @@ class PandaActionServer(object):
         # self.command_gripper(req.width.data)
         self.open_gripper()
 
-        # Define a pre-grasp point along the approach axis
-        p1 = quaternion_matrix([0., 0., 0., 1.])
-        p1[:3, 3] = np.array([0., 0., -0.1])
+        # Transform grasp in homogeneous matrix notation
+        target_grasp_pose_q = req.grasp.pose.orientation
+        target_grasp_pose_p = req.grasp.pose.position
+        target_grasp_pose = quaternion_matrix([target_grasp_pose_q.x,
+                                              target_grasp_pose_q.y,
+                                              target_grasp_pose_q.z,
+                                              target_grasp_pose_q.w])
+        target_grasp_pose[:3, 3] = np.array([target_grasp_pose_p.x,
+                                             target_grasp_pose_p.y,
+                                             target_grasp_pose_p.z])
 
-        # Transform grasp in matrix notation
-        q_gp = req.grasp.pose.orientation
-        p_gp = req.grasp.pose.position
-        gp = quaternion_matrix([q_gp.x, q_gp.y, q_gp.z, q_gp.w])
-        gp[:3, 3] = np.array([p_gp.x, p_gp.y, p_gp.z])
+        # Define a pre-grasp point along the approach axis
+        approach_offset = quaternion_matrix([0., 0., 0., 1.])
+        approach_offset[:3, 3] = np.array([0., 0., -0.15])
 
         # Create pregrasp pose
-        pregrasp = np.matmul(gp, p1)
-        q_pregrasp = quaternion_from_matrix(pregrasp)
-
         pregrasp_pose = geometry_msgs.msg.Pose()
 
-        pregrasp_pose.orientation.x = q_pregrasp[0]
-        pregrasp_pose.orientation.y = q_pregrasp[1]
-        pregrasp_pose.orientation.z = q_pregrasp[2]
-        pregrasp_pose.orientation.w = q_pregrasp[3]
+        pregrasp = np.matmul(target_grasp_pose, approach_offset)
+        pregrasp_q = quaternion_from_matrix(pregrasp)
+
+        pregrasp_pose.orientation.x = pregrasp_q[0]
+        pregrasp_pose.orientation.y = pregrasp_q[1]
+        pregrasp_pose.orientation.z = pregrasp_q[2]
+        pregrasp_pose.orientation.w = pregrasp_q[3]
 
         pregrasp_pose.position.x = pregrasp[0, 3]
         pregrasp_pose.position.y = pregrasp[1, 3]
@@ -628,6 +633,40 @@ class PandaActionServer(object):
             return False
 
         if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
+            return False
+
+
+        # Try to enforce an orientation constraint in grasp approach
+        self._move_group.clear_pose_targets()
+        grasp_constraint = moveit_msgs.msg.Constraints()
+        grasp_constraint.name = "Grasp approach constraints"
+        orient_constraint = moveit_msgs.msg.OrientationConstraint()
+        orient_constraint.header.frame_id = "panda_link0"
+        orient_constraint.link_name = "panda_hand"
+        orient_constraint.orientation = target_grasp_pose.orientation
+        orient_constraint.absolute_x_axis_tolerance = 0.1
+        orient_constraint.absolute_y_axis_tolerance = 0.1
+        orient_constraint.absolute_z_axis_tolerance = 0.1
+        orient_constraint.weight = 1.0
+        grasp_constraint.orientation_constraints.append(orient_constraint)
+        self._move_group.set_path_constraints(grasp_constraint)
+        self._move_group.set_planning_time = 10.0
+        self._move_group.set_pose_target(req.grasp.pose)
+
+        if not self._motion_stopped:
+            plan = self._move_group.plan()
+            if not self._move_group.execute(plan, wait=True):
+                rospy.loginfo("Trajectory planning has failed")
+                self._move_group.stop()
+                self._move_group.clear_pose_targets()
+                self._move_group.clear_trajectory_constraints()
+                return False
+            self._move_group.clear_trajectory_constraints()
+        else:
+            rospy.loginfo("Motion is stopped. Aborting movement")
+            self._move_group.stop()
+            self._move_group.clear_pose_targets()
+            self._move_group.clear_trajectory_constraints()
             return False
 
         if not self.go_to_pose(req.grasp.pose, message="Moving to grasp pose"):
