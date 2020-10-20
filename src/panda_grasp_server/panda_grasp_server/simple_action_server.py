@@ -10,6 +10,7 @@ import moveit_commander
 import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix
+from threading import Lock
 
 from panda_ros_common.msg import PandaState
 
@@ -69,6 +70,7 @@ class NodeConfig(object):
         self._gripper_cmd_service_name = rospy.get_param("~service_names/panda_gripper_cmd_service", "~panda_gripper_cmd")
         self._get_robot_state_service_name = rospy.get_param("~service_names/panda_get_state_service", "~panda_get_state")
         self._set_scaling_factor_service_name = rospy.get_param("~service_names/panda_set_scaling_factors_service", "~panda_set_scaling_factors")
+        self._recover_service_name = rospy.get_param("~service_names/panda_error_recover_service", "~panda_error_recover")
 
         # Configure scene parameters
         self._table_height = rospy.get_param("~workspace/table_height", 0.15) # z distance from upper side of the table block, from the robot base ref frame
@@ -141,6 +143,10 @@ class PandaActionServer(object):
         self._scene = moveit_commander.PlanningSceneInterface()
         self._scene.remove_world_object()
 
+        # Configure status monitor condition
+        self._stop_mutex = Lock()
+        self._motion_stopped = False
+
         # Configure user input server
         self._cmd_srv = rospy.Service(config._user_cmd_service_name,
                                       UserCmd,
@@ -175,6 +181,11 @@ class PandaActionServer(object):
         self._movement_stop_server = rospy.Service(config._stop_service_name,
                                                     Trigger,
                                                     self.stop_motion_callback)
+
+        # Configure error clear server
+        self._error_recover_server = rospy.Service(config._recover_service_name,
+                                                   Trigger,
+                                                   self.recover_error_callback)
 
         # Configure gripper closing server
         self._gripper_cmd_server = rospy.Service(config._gripper_cmd_service_name,
@@ -258,6 +269,16 @@ class PandaActionServer(object):
 
         #     pub_planning_scene.publish(planning_scene_diff)
         #     rospy.sleep(1.0)
+
+    def set_stopped_status(self, stopped=True):
+
+        # Set the motion stopped status of the server
+        # Stopped = True means robot has been stopped
+        # Necessary to stop trajectory execution
+
+        self._stop_mutex.acquire()
+        self._motion_stopped = stopped
+        self._stop_mutex.release()
 
     def set_home(self, pos, quat):
 
@@ -357,16 +378,20 @@ class PandaActionServer(object):
     def go_to_pose(self, target_pose, message=None):
 
         self._move_group.clear_pose_targets()
-        self._move_group.set_pose_target(target_pose)
-        plan = self._move_group.plan(target_pose)
 
-        if plan.joint_trajectory.points:
-            if message:
-                rospy.loginfo(str(message))
-            move_success = self._move_group.execute(plan, wait=True)
+        if not self._motion_stopped:
+            self._move_group.set_pose_target(target_pose)
+            plan = self._move_group.plan(target_pose)
+            if plan.joint_trajectory.points:
+                if message:
+                    rospy.loginfo(str(message))
+                move_success = self._move_group.execute(plan, wait=True)
+            else:
+                rospy.loginfo("Trajectory planning has failed")
+                move_success = False
         else:
-            rospy.loginfo("Trajectory planning has failed")
-            move_success = False
+            rospy.loginfo("Motion is stopped. Aborting movement")
+            move_success=False
 
         self._move_group.stop()
         self._move_group.clear_pose_targets()
@@ -516,6 +541,16 @@ class PandaActionServer(object):
 
         self._move_group.stop()
         self._move_group_hand.stop()
+        self.set_stopped_status(stopped=True)
+
+        return TriggerResponse(
+                    success=True,
+                    message="Motion stopped"
+        )
+
+    def recover_error_callback(self, req):
+
+        # Recover from error and reset motion status
 
         from franka_msgs.msg import ErrorRecoveryActionGoal
 
@@ -525,9 +560,11 @@ class PandaActionServer(object):
             pub.publish(msg)
             rospy.sleep(0.1)
 
+        self.set_stopped_status(stopped=False)
+
         return TriggerResponse(
                     success=True,
-                    message="Motion stopped"
+                    message="Recovered from error"
         )
 
     def set_vel_accel_scaling_factors(self, vel_scal_fac, acc_scal_fac):
