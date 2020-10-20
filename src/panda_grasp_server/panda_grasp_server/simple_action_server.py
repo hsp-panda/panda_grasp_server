@@ -49,17 +49,6 @@ class NodeConfig(object):
     def __init__(self):
 
         # Configure service names
-        # self._user_cmd_service_name = "~user_cmd"
-        # self._move_service_name = "~panda_move_pose"
-        # self._grasp_service_name = "~panda_grasp"
-        # self._home_service_name = "~panda_home"
-        # self._move_wp_service_name = "~panda_move_wp"
-        # self._set_home_service_name = "~panda_set_home_pose"
-        # self._stop_service_name = "~panda_stop"
-        # self._gripper_cmd_service_name = "~panda_gripper_cmd"
-        # self._get_robot_state_service_name = "~panda_get_state"
-        # self._set_scaling_factor_service_name = "~panda_set_scaling_factors"
-
         self._user_cmd_service_name = rospy.get_param("~service_names/user_cmd_service", "~user_cmd")
         self._move_service_name = rospy.get_param("~service_names/panda_move_pose_service", "~panda_move_pose")
         self._grasp_service_name = rospy.get_param("~service_names/panda_grasp_service", "~panda_grasp")
@@ -79,29 +68,15 @@ class NodeConfig(object):
         self._bench_dimensions = rospy.get_param("~workspace/bench_size", (0.6, 0.6, 0.6)) # x y z
         self._bench_mount_point_xy = rospy.get_param("~workspace/bench_mount_xy", (0.1, 0.0)) # x y wrt center of the bench
 
-        # self._table_height = 0.15 # z distance from upper side of the table block, from the robot base ref frame
-        # self._table_size = (2.0, 2.0, 0.8) # x y z size of table block
-        # self._robot_workspace = None
-        # self._bench_dimensions = (0.6, 0.6, 0.6) # x y z
-        # self._bench_mount_point_xy = (0.2, 0.0) # x y wrt center of the bench
-
-
         # Configure speed/accel scaling factors
         self._max_velocity_scaling_factor = rospy.get_param("~planning/max_vel_scaling_factor", 0.3)
         self._max_acceleration_scaling_factor = rospy.get_param("~planning/max_acc_scaling_factor", 0.3)
 
-        # self._max_velocity_scaling_factor = 0.3
-        # self._max_acceleration_scaling_factor = 0.3
-
         # Configure planner ID
         self._planner_id = rospy.get_param("~planning/planner_id", "RRTkConfigDefault")
 
-        # self._planner_id = "RRTkConfigDefault"
-
         # Enable Rviz visualization of trajectories
         self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
-
-        # self._publish_rviz = True
 
 
 class PandaActionServer(object):
@@ -148,9 +123,9 @@ class PandaActionServer(object):
         self._motion_stopped = False
 
         # Configure user input server
-        self._cmd_srv = rospy.Service(config._user_cmd_service_name,
-                                      UserCmd,
-                                      self.user_cmd_callback)
+        # self._cmd_srv = rospy.Service(config._user_cmd_service_name,
+        #                               UserCmd,
+        #                               self.user_cmd_callback)
 
         # Configure grasping server
         self._grasp_service = rospy.Service(config._grasp_service_name,
@@ -701,55 +676,55 @@ class PandaActionServer(object):
 
         return True
 
-    def user_cmd_callback(self, req):
-        rospy.loginfo("Received new command from user...")
+    # def user_cmd_callback(self, req):
+    #     rospy.loginfo("Received new command from user...")
 
-        cmd = req.cmd.data
+    #     cmd = req.cmd.data
 
-        if cmd=="help":
-            rospy.loginfo("available commands are:")
-            rospy.loginfo("go_home\nset_home\njoints_state\npose_ee\nmove_gripper\nexecute_traj")
-            return True
+    #     if cmd=="help":
+    #         rospy.loginfo("available commands are:")
+    #         rospy.loginfo("go_home\nset_home\njoints_state\npose_ee\nmove_gripper\nexecute_traj")
+    #         return True
 
-        elif cmd == "go_home":
-            self.go_home()
-            return True
+    #     elif cmd == "go_home":
+    #         self.go_home()
+    #         return True
 
-        elif cmd == "set_home":
-            pos, quat = self._get_pose_from_user()
-            if len(pos)==3 and len(quat)==4:
-                self.set_home(pos, quat)
-                return True
-            else:
-                return False
+    #     elif cmd == "set_home":
+    #         pos, quat = self._get_pose_from_user()
+    #         if len(pos)==3 and len(quat)==4:
+    #             self.set_home(pos, quat)
+    #             return True
+    #         else:
+    #             return False
 
-        elif cmd == "joints_state":
-            joint_states = self.get_joints_state()
-            rospy.loginfo("joint poses: ", joint_states)
-            gripper_poses = self.get_gripper_state()
-            rospy.loginfo("gripper poses: ", gripper_poses)
-            return True
+    #     elif cmd == "joints_state":
+    #         joint_states = self.get_joints_state()
+    #         rospy.loginfo("joint poses: ", joint_states)
+    #         gripper_poses = self.get_gripper_state()
+    #         rospy.loginfo("gripper poses: ", gripper_poses)
+    #         return True
 
-        elif cmd == "pose_ee":
-            pos, quat = self.get_current_pose_EE()
-            rospy.loginfo("current gripper pose: ")
-            rospy.loginfo(pos)
-            rospy.loginfo(quat)
-            return True
-        elif cmd == "move_gripper":
-            user_cmd = raw_input("Set desired gripper width:")
-            width = float(user_cmd)
-            rospy.loginfo("required width ", width)
+    #     elif cmd == "pose_ee":
+    #         pos, quat = self.get_current_pose_EE()
+    #         rospy.loginfo("current gripper pose: ")
+    #         rospy.loginfo(pos)
+    #         rospy.loginfo(quat)
+    #         return True
+    #     elif cmd == "move_gripper":
+    #         user_cmd = raw_input("Set desired gripper width:")
+    #         width = float(user_cmd)
+    #         rospy.loginfo("required width ", width)
 
-            self.command_gripper(width)
-            return True
-        elif cmd == "execute_traj":
-            rospy.loginfo("executing trajectory")
-            self.execute_trajectory()
-            return True
-        else:
-            rospy.loginfo("unvalid command ", cmd)
-            return False
+    #         self.command_gripper(width)
+    #         return True
+    #     elif cmd == "execute_traj":
+    #         rospy.loginfo("executing trajectory")
+    #         self.execute_trajectory()
+    #         return True
+    #     else:
+    #         rospy.loginfo("unvalid command ", cmd)
+    #         return False
 
 if __name__ == "__main__":
 
