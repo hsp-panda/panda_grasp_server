@@ -91,6 +91,7 @@ class PandaActionServer(object):
         self._move_group = moveit_commander.MoveGroupCommander(
             self._group_name)
         self._move_group.set_end_effector_link("panda_tcp")
+        # self._move_group.set_end_effector_link("panda_hand")
         self._eef_link = self._move_group.get_end_effector_link()
         self._move_group_hand = moveit_commander.MoveGroupCommander(
             "hand")
@@ -199,6 +200,13 @@ class PandaActionServer(object):
                                        0,
                                        math.pi/2,
                                        math.pi/4]
+        self._home_pose_joints[0:7] = [-0.12078503605043679, 
+                                       -1.2980767531980548, 
+                                       0.026837484857365677, 
+                                       -2.386302989257368, 
+                                       0.07335721945762633, 
+                                       1.6099749157428742, 
+                                       0.7011881882676905]
 
         # Add table as a collision object
         if config._table_height is not None:
@@ -629,9 +637,6 @@ class PandaActionServer(object):
         if not self.go_home(use_joints=True):
             return False
 
-        if not self.go_home():
-            return False
-
         if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
             return False
 
@@ -640,15 +645,17 @@ class PandaActionServer(object):
         self._move_group.clear_pose_targets()
         grasp_constraint = moveit_msgs.msg.Constraints()
         grasp_constraint.name = "Grasp approach constraints"
+
         orient_constraint = moveit_msgs.msg.OrientationConstraint()
         orient_constraint.header.frame_id = "panda_link0"
-        orient_constraint.link_name = "panda_hand"
-        orient_constraint.orientation = target_grasp_pose.orientation
+        orient_constraint.link_name = "panda_tcp"
+        orient_constraint.orientation = target_grasp_pose_q
         orient_constraint.absolute_x_axis_tolerance = 0.1
         orient_constraint.absolute_y_axis_tolerance = 0.1
         orient_constraint.absolute_z_axis_tolerance = 0.1
         orient_constraint.weight = 1.0
         grasp_constraint.orientation_constraints.append(orient_constraint)
+
         self._move_group.set_path_constraints(grasp_constraint)
         self._move_group.set_planning_time = 10.0
         self._move_group.set_pose_target(req.grasp.pose)
@@ -659,21 +666,22 @@ class PandaActionServer(object):
                 rospy.loginfo("Trajectory planning has failed")
                 self._move_group.stop()
                 self._move_group.clear_pose_targets()
-                self._move_group.clear_trajectory_constraints()
+                self._move_group.clear_path_constraints()
                 return False
-            self._move_group.clear_trajectory_constraints()
+            self._move_group.clear_path_constraints()
         else:
             rospy.loginfo("Motion is stopped. Aborting movement")
             self._move_group.stop()
             self._move_group.clear_pose_targets()
-            self._move_group.clear_trajectory_constraints()
+            self._move_group.clear_path_constraints()
             return False
 
-        if not self.go_to_pose(req.grasp.pose, message="Moving to grasp pose"):
-            return False
+        # if not self.go_to_pose(req.grasp.pose, message="Moving to grasp pose"):
+        #     return False
 
-        if not self.close_gripper():
-            return False
+        self.close_gripper()
+        # if not self.close_gripper():
+            # return False
 
         if not self.go_to_pose(pregrasp_pose, message="Moving back from grasping pose"):
             return False
@@ -710,7 +718,7 @@ class PandaActionServer(object):
         if not self.open_gripper():
             return False
 
-        if not self.go_home():
+        if not self.go_home(use_joints=True):
             return False
 
         return True
