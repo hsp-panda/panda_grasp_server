@@ -640,44 +640,57 @@ class PandaActionServer(object):
         if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
             return False
 
-
         # Try to enforce an orientation constraint in grasp approach
-        self._move_group.clear_pose_targets()
-        grasp_constraint = moveit_msgs.msg.Constraints()
-        grasp_constraint.name = "Grasp approach constraints"
+        # self._move_group.clear_pose_targets()
+        # grasp_constraint = moveit_msgs.msg.Constraints()
+        # grasp_constraint.name = "Grasp approach constraints"
 
-        orient_constraint = moveit_msgs.msg.OrientationConstraint()
-        orient_constraint.header.frame_id = "panda_link0"
-        orient_constraint.link_name = "panda_tcp"
-        orient_constraint.orientation = target_grasp_pose_q
-        orient_constraint.absolute_x_axis_tolerance = 0.1
-        orient_constraint.absolute_y_axis_tolerance = 0.1
-        orient_constraint.absolute_z_axis_tolerance = 0.1
-        orient_constraint.weight = 1.0
-        grasp_constraint.orientation_constraints.append(orient_constraint)
+        # orient_constraint = moveit_msgs.msg.OrientationConstraint()
+        # orient_constraint.header.frame_id = "panda_link0"
+        # orient_constraint.link_name = "panda_tcp"
+        # orient_constraint.orientation = target_grasp_pose_q
+        # orient_constraint.absolute_x_axis_tolerance = 0.1
+        # orient_constraint.absolute_y_axis_tolerance = 0.1
+        # orient_constraint.absolute_z_axis_tolerance = 0.1
+        # orient_constraint.weight = 1.0
+        # grasp_constraint.orientation_constraints.append(orient_constraint)
 
-        self._move_group.set_path_constraints(grasp_constraint)
-        self._move_group.set_planning_time = 10.0
-        self._move_group.set_pose_target(req.grasp.pose)
+        # self._move_group.set_path_constraints(grasp_constraint)
+        # self._move_group.set_planning_time = 10.0
+        # self._move_group.set_pose_target(req.grasp.pose)
 
-        if not self._motion_stopped:
-            plan = self._move_group.plan()
-            if not self._move_group.execute(plan, wait=True):
-                rospy.loginfo("Trajectory planning has failed")
-                self._move_group.stop()
-                self._move_group.clear_pose_targets()
-                self._move_group.clear_path_constraints()
-                return False
-            self._move_group.clear_path_constraints()
-        else:
-            rospy.loginfo("Motion is stopped. Aborting movement")
-            self._move_group.stop()
-            self._move_group.clear_pose_targets()
-            self._move_group.clear_path_constraints()
-            return False
-
-        # if not self.go_to_pose(req.grasp.pose, message="Moving to grasp pose"):
+        # if not self._motion_stopped:
+        #     plan = self._move_group.plan()
+        #     if not self._move_group.execute(plan, wait=True):
+        #         rospy.loginfo("Trajectory planning has failed")
+        #         self._move_group.stop()
+        #         self._move_group.clear_pose_targets()
+        #         self._move_group.clear_path_constraints()
+        #         return False
+        #     self._move_group.clear_path_constraints()
+        # else:
+        #     rospy.loginfo("Motion is stopped. Aborting movement")
+        #     self._move_group.stop()
+        #     self._move_group.clear_pose_targets()
+        #     self._move_group.clear_path_constraints()
         #     return False
+
+        approach_waypoints = []
+        n_approach_waypoints = 10
+        approach_range_x = target_grasp_pose_p.x - pregrasp_pose.position.x
+        approach_range_y = target_grasp_pose_p.y - pregrasp_pose.position.y
+        approach_range_z = target_grasp_pose_p.z - pregrasp_pose.position.z
+        for idx_waypoint in range(n_approach_waypoints + 1):
+            wp = copy.deepcopy(pregrasp_pose)
+            wp.position.x = pregrasp_pose.position.x + approach_range_x * idx_waypoint / n_approach_waypoints
+            wp.position.y = pregrasp_pose.position.y + approach_range_y * idx_waypoint / n_approach_waypoints
+            wp.position.z = pregrasp_pose.position.z + approach_range_z * idx_waypoint / n_approach_waypoints
+
+            approach_waypoints.append(wp)
+
+        if not self.execute_trajectory(approach_waypoints):
+            self.go_home(use_joints=True)
+            return False
 
         self.close_gripper()
         # if not self.close_gripper():
