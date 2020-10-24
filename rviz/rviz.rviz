@@ -346,6 +346,15 @@ Visualization Manager:
                                 {}
       Update Interval: 0
       Value: true
+    - Class: rviz/MarkerArray
+      Enabled: true
+      Marker Topic: /gpd_bench/gpd_grasp_planner
+      Name: MarkerArray
+      Namespaces:
+        finger: true
+        hand_base: true
+      Queue Size: 100
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
@@ -363,25 +372,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 2.69515323638916
+      Distance: 0.8756886720657349
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.11356700211763382
-        Y: 0.10592000186443329
-        Z: 2.2351800055275817e-7
+        X: 0.5149386525154114
+        Y: -0.013059437274932861
+        Z: 2.5332030872959876e-7
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.3602031469345093
+      Pitch: 0.6902030110359192
       Target Frame: panda_link0
       Value: XYOrbit (rviz)
-      Yaw: 4.84994649887085
+      Yaw: 5.2249579429626465
     Saved: ~
 Window Geometry:
   Displays:
