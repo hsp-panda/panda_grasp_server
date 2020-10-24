@@ -736,56 +736,6 @@ class PandaActionServer(object):
 
         return True
 
-    # def user_cmd_callback(self, req):
-    #     rospy.loginfo("Received new command from user...")
-
-    #     cmd = req.cmd.data
-
-    #     if cmd=="help":
-    #         rospy.loginfo("available commands are:")
-    #         rospy.loginfo("go_home\nset_home\njoints_state\npose_ee\nmove_gripper\nexecute_traj")
-    #         return True
-
-    #     elif cmd == "go_home":
-    #         self.go_home()
-    #         return True
-
-    #     elif cmd == "set_home":
-    #         pos, quat = self._get_pose_from_user()
-    #         if len(pos)==3 and len(quat)==4:
-    #             self.set_home(pos, quat)
-    #             return True
-    #         else:
-    #             return False
-
-    #     elif cmd == "joints_state":
-    #         joint_states = self.get_joints_state()
-    #         rospy.loginfo("joint poses: ", joint_states)
-    #         gripper_poses = self.get_gripper_state()
-    #         rospy.loginfo("gripper poses: ", gripper_poses)
-    #         return True
-
-    #     elif cmd == "pose_ee":
-    #         pos, quat = self.get_current_pose_EE()
-    #         rospy.loginfo("current gripper pose: ")
-    #         rospy.loginfo(pos)
-    #         rospy.loginfo(quat)
-    #         return True
-    #     elif cmd == "move_gripper":
-    #         user_cmd = raw_input("Set desired gripper width:")
-    #         width = float(user_cmd)
-    #         rospy.loginfo("required width ", width)
-
-    #         self.command_gripper(width)
-    #         return True
-    #     elif cmd == "execute_traj":
-    #         rospy.loginfo("executing trajectory")
-    #         self.execute_trajectory()
-    #         return True
-    #     else:
-    #         rospy.loginfo("unvalid command ", cmd)
-    #         return False
-
 if __name__ == "__main__":
 
     # Initialize the ROS node.
