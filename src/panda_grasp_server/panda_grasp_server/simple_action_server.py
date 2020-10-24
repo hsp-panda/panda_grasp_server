@@ -721,9 +721,9 @@ class PandaActionServer(object):
         if not self.go_to_pose(next_pose):
             return False
 
-        next_pose.position.x = 0.4
-        next_pose.position.y = -0.4
-        next_pose.position.z = 0.45
+        next_pose.position.x = 0.0
+        next_pose.position.y = -0.55
+        next_pose.position.z = 0.3
 
         if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
             return False
