@@ -200,12 +200,12 @@ class PandaActionServer(object):
                                        0,
                                        math.pi/2,
                                        math.pi/4]
-        self._home_pose_joints[0:7] = [-0.12078503605043679, 
-                                       -1.2980767531980548, 
-                                       0.026837484857365677, 
-                                       -2.386302989257368, 
-                                       0.07335721945762633, 
-                                       1.6099749157428742, 
+        self._home_pose_joints[0:7] = [-0.12078503605043679,
+                                       -1.2980767531980548,
+                                       0.026837484857365677,
+                                       -2.386302989257368,
+                                       0.07335721945762633,
+                                       1.6099749157428742,
                                        0.7011881882676905]
 
         # Add table as a collision object
@@ -736,7 +736,7 @@ class PandaActionServer(object):
 
         return True
 
-if __name__ == "__main__":
+def main():
 
     # Initialize the ROS node.
     rospy.init_node("panda_action_server")
