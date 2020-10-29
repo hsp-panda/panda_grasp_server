@@ -716,14 +716,63 @@ class PandaActionServer(object):
             approach_waypoints.append(wp)
 
         if not self.execute_trajectory(approach_waypoints):
+
+            # If there is no plan available for this grasp pose, try flipping it around the approach axis and replan
+            rospy.logwarn("Target pose unreachable. Replanning with flipped pose. Press a key to proceed")
+            raw_input()
+
+            target_grasp_pose = np.dot(target_grasp_pose, 
+                                       quaternion_matrix([0, 0, 1, 0]))
+
+            # Define a pre-grasp point along the approach axis
+            approach_offset = quaternion_matrix([0., 0., 0., 1.])
+            approach_offset[:3, 3] = np.array([0., 0., -0.15])
+
+            # Create pregrasp pose
+            pregrasp_pose = geometry_msgs.msg.Pose()
+
+            pregrasp = np.matmul(target_grasp_pose, approach_offset)
+            pregrasp_q = quaternion_from_matrix(pregrasp)
+
+            pregrasp_pose.orientation.x = pregrasp_q[0]
+            pregrasp_pose.orientation.y = pregrasp_q[1]
+            pregrasp_pose.orientation.z = pregrasp_q[2]
+            pregrasp_pose.orientation.w = pregrasp_q[3]
+
+            pregrasp_pose.position.x = pregrasp[0, 3]
+            pregrasp_pose.position.y = pregrasp[1, 3]
+            pregrasp_pose.position.z = pregrasp[2, 3]
+
+            # Re-create waypoints
+            approach_waypoints = []
+            n_approach_waypoints = 10
+            approach_range_x = target_grasp_pose_p.x - pregrasp_pose.position.x
+            approach_range_y = target_grasp_pose_p.y - pregrasp_pose.position.y
+            approach_range_z = target_grasp_pose_p.z - pregrasp_pose.position.z
+            for idx_waypoint in range(n_approach_waypoints + 1):
+                wp = copy.deepcopy(pregrasp_pose)
+                wp.position.x = pregrasp_pose.position.x + approach_range_x * idx_waypoint / n_approach_waypoints
+                wp.position.y = pregrasp_pose.position.y + approach_range_y * idx_waypoint / n_approach_waypoints
+                wp.position.z = pregrasp_pose.position.z + approach_range_z * idx_waypoint / n_approach_waypoints
+
+                approach_waypoints.append(wp)
+
+            # Re-attempt with the flipped pose
+            if not self.execute_trajectory(approach_waypoints):
+                rospy.logwarn("Replanning failed. Grasp pose is unreachable.")
+                self.go_home(use_joints=True)
+                return False
+                
             self.go_home(use_joints=True)
             return False
 
+        # Try to grasp. In case of failure, go back to pregrasp pose and go home
         if not self.grasp(req.width.data):
+            rospy.logwarn("Grasp failed!")
+            self.open_gripper()
+            self.go_to_pose(pregrasp_pose)
+            self.go_home(use_joints=True)
             return False
-        # self.close_gripper()
-        # if not self.close_gripper():
-            # return False
 
         if not self.go_to_pose(pregrasp_pose, message="Moving back from grasping pose"):
             return False
