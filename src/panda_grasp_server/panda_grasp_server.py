@@ -806,13 +806,11 @@ class PandaActionServer(object):
         if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
             return False
 
-        if not self.open_gripper():
-            return False
+        self.open_gripper()
 
-        if not self.go_home(use_joints=True):
-            return False
+        self.go_home(use_joints=True)
 
-        return True
+        return grasp_success
 
 def main():
 
