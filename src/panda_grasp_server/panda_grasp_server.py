@@ -25,6 +25,8 @@ from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspRespo
                                     PandaSetVelAccelScalingFactors, PandaSetVelAccelScalingFactorsRequest, PandaSetVelAccelScalingFactorsResponse
                                     )
 
+import actionlib
+from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
 
 def all_close(goal, actual, tolerance):
 
@@ -178,6 +180,10 @@ class PandaActionServer(object):
                                                 PandaSetVelAccelScalingFactors,
                                                 self.set_vel_accel_scaling_factor_callback)
 
+        # Configure gripper action client
+        self._grasp_action_client = actionlib.SimpleActionClient("/franka_gripper/grasp", GraspAction)
+        self._grasp_action_client.wait_for_server()
+
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
 
@@ -193,13 +199,15 @@ class PandaActionServer(object):
         # Alternative home pose in joint values
         # This home pose is the same defined in the libfranka tutorials
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        self._home_pose_joints[0:7] = [0,
-                                       -math.pi/4,
-                                       0,
-                                       -3*math.pi/4,
-                                       0,
-                                       math.pi/2,
-                                       math.pi/4]
+        # self._home_pose_joints[0:7] = [0,
+        #                                -math.pi/4,
+        #                                0,
+        #                                -3*math.pi/4,
+        #                                0,
+        #                                math.pi/2,
+        #                                math.pi/4]
+
+        # Natural point of view home pose
         self._home_pose_joints[0:7] = [-0.12078503605043679,
                                        -1.2980767531980548,
                                        0.026837484857365677,
@@ -318,7 +326,7 @@ class PandaActionServer(object):
     def open_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
         if joint_goal[0] <= 0.03 and joint_goal[1] <= 0.03:
-            return self.command_gripper(0.08)
+            return self.command_gripper(0.079)
         else:
             rospy.loginfo("gripper already open")
             return False
@@ -595,6 +603,25 @@ class PandaActionServer(object):
 
         return position, quaternion
 
+    def grasp(self, width, force=0.5, epsilon=0.01, velocity=0.05):
+
+        # Execute grasp directly with the gripper action server
+        # Not sure if this is the proper way to do it within MoveIt though
+
+        grasp_goal = GraspActionGoal()
+        grasp_goal.goal.width = width
+        grasp_goal.goal.epsilon.inner = grasp_goal.goal.epsilon.outer = epsilon
+        grasp_goal.goal.speed = velocity
+        grasp_goal.goal.force = force
+
+
+        self._grasp_action_client.send_goal(grasp_goal.goal)
+        self._grasp_action_client.wait_for_result()
+
+        grasp_result = self._grasp_action_client.get_result()
+
+        return grasp_result.success
+
     def do_grasp_callback(self, req):
 
         rospy.loginfo('%s: Executing grasp' %
@@ -637,8 +664,8 @@ class PandaActionServer(object):
         if not self.go_home(use_joints=True):
             return False
 
-        if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
-            return False
+        # if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
+        #     return False
 
         # Try to enforce an orientation constraint in grasp approach
         # self._move_group.clear_pose_targets()
@@ -692,7 +719,9 @@ class PandaActionServer(object):
             self.go_home(use_joints=True)
             return False
 
-        self.close_gripper()
+        if not self.grasp(req.width.data):
+            return False
+        # self.close_gripper()
         # if not self.close_gripper():
             # return False
 
@@ -700,7 +729,7 @@ class PandaActionServer(object):
             return False
 
         lift_pose = req.grasp.pose
-        lift_pose.position.z += 0.30
+        lift_pose.position.z += 0.20
 
         if not self.go_to_pose(lift_pose, message="Lifting from grasping pose"):
             return False
@@ -723,7 +752,7 @@ class PandaActionServer(object):
 
         next_pose.position.x = 0.0
         next_pose.position.y = -0.55
-        next_pose.position.z = 0.3
+        next_pose.position.z = 0.4
 
         if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
             return False
