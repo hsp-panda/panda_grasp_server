@@ -325,7 +325,7 @@ class PandaActionServer(object):
 
     def open_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
-        if joint_goal[0] <= 0.03 and joint_goal[1] <= 0.03:
+        if joint_goal[0] <= 0.04 and joint_goal[1] <= 0.04:
             return self.command_gripper(0.079)
         else:
             rospy.loginfo("gripper already open")
@@ -469,7 +469,7 @@ class PandaActionServer(object):
                                         velocity_scaling_factor=self._max_velocity_scaling_factor,
                                         acceleration_scaling_factor=self._max_acceleration_scaling_factor)
 
-        if fraction > 0.99:
+        if fraction > 0.95:
             msg = "Moving robot arm. Planned " + str(fraction) + " of the trajectory"
             rospy.loginfo(msg)
             self._move_group.execute(plan, wait=True)
@@ -603,7 +603,7 @@ class PandaActionServer(object):
 
         return position, quaternion
 
-    def grasp(self, width, force=0.5, epsilon=0.01, velocity=0.05):
+    def grasp(self, width, force=0.5, epsilon=0.02, velocity=0.1):
 
         # Execute grasp directly with the gripper action server
         # Not sure if this is the proper way to do it within MoveIt though
