@@ -9,7 +9,7 @@ import geometry_msgs
 import moveit_commander
 import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from tf.transformations import quaternion_from_matrix, quaternion_matrix
+from tf.transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
 from threading import Lock
 
 from panda_ros_common.msg import PandaState
@@ -603,7 +603,7 @@ class PandaActionServer(object):
 
         return position, quaternion
 
-    def grasp(self, width, force=0.5, epsilon=0.02, velocity=0.1):
+    def grasp(self, width, force=0.01, epsilon=0.03, velocity=1):
 
         # Execute grasp directly with the gripper action server
         # Not sure if this is the proper way to do it within MoveIt though
@@ -616,7 +616,7 @@ class PandaActionServer(object):
 
 
         self._grasp_action_client.send_goal(grasp_goal.goal)
-        self._grasp_action_client.wait_for_result()
+        self._grasp_action_client.wait_for_result(rospy.Duration(5))
 
         grasp_result = self._grasp_action_client.get_result()
 
@@ -789,6 +789,9 @@ class PandaActionServer(object):
         rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
         rospy.loginfo("Grasp success? " + str(grasp_success))
 
+        # Check stability
+        self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
+
         # Move object out of workspace
         next_pose = lift_pose
         next_pose.orientation.x = 1
@@ -796,8 +799,8 @@ class PandaActionServer(object):
         next_pose.orientation.z = 0
         next_pose.orientation.w = 0
 
-        if not self.go_to_pose(next_pose):
-            return False
+        # if not self.go_to_pose(next_pose):
+        #     return False
 
         next_pose.position.x = 0.0
         next_pose.position.y = -0.55
@@ -811,6 +814,99 @@ class PandaActionServer(object):
         self.go_home(use_joints=True)
 
         return grasp_success
+
+
+    def evaluate_stability(self, grasp_pose, tcp_travel, approach_rotation_angle=np.pi/4, binormal_rotation_angle=np.pi/6):
+
+        # Evaluate stability of the grasp according to GRASPA v1.0
+        # Approach and binormal rotation angles are in radians
+        # tcp_travel is the 3D point to take the tcp to (while maintaining orientation) before executing rotations
+
+        # Get initial orientation as a 4x4 homogeneous matrix
+        # Rotation is the grasp rotation
+        # Position of the tcp is tcp_travel
+        grasp_orientation_quat = [grasp_pose.orientation.x, 
+                                  grasp_pose.orientation.y, 
+                                  grasp_pose.orientation.z, 
+                                  grasp_pose.orientation.w]
+        grasp_orientation_m = quaternion_matrix(grasp_orientation_quat)
+
+        evaluation_center_pose = grasp_orientation_m
+        evaluation_center_pose[:3, 3] = np.array([tcp_travel[0],
+                                                  tcp_travel[1],
+                                                  tcp_travel[2]])
+        
+        # Compute rotations around axes in matrix form
+        approach_axis = grasp_orientation_m[:3, 2]
+        appr_rot_positive = rotation_matrix(angle=approach_rotation_angle,
+                                            direction=approach_axis,
+                                            point=np.zeros(3)
+                                            )
+        appr_rot_negative = rotation_matrix(angle=-approach_rotation_angle,
+                                            direction=approach_axis,
+                                            point=np.zeros(3)
+                                            )
+        binormal_axis = grasp_orientation_m[:3, 1]
+        bin_rot_positive = rotation_matrix(angle=binormal_rotation_angle,
+                                           direction=binormal_axis,
+                                           point=np.zeros(3)
+                                           )
+        bin_rot_negative = rotation_matrix(angle=-binormal_rotation_angle,
+                                           direction=binormal_axis,
+                                           point=np.zeros(3)
+                                           )
+        
+
+        # Obtain target poses
+        appr_rot_positive_pose = np.dot(evaluation_center_pose, appr_rot_positive)
+        appr_rot_negative_pose = np.dot(evaluation_center_pose, appr_rot_negative)
+        bin_rot_positive_pose = np.dot(evaluation_center_pose, bin_rot_positive)
+        bin_rot_negative_pose = np.dot(evaluation_center_pose, bin_rot_negative)
+
+        def numpy_to_pose(pose_4x4):
+            
+            pose_msg = geometry_msgs.msg.Pose()
+
+            # order as in geometry_msg/Pose.msg
+            position_list = pose_4x4[:3, 3].tolist()
+            orientation_list = quaternion_from_matrix(pose_4x4).tolist()
+
+            pose_msg.position.x, pose_msg.position.y, pose_msg.position.z = [val for val in position_list]
+            pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w = [val for val in orientation_list]
+
+            return pose_msg
+
+        wp_1 = numpy_to_pose(appr_rot_positive_pose)
+        wp_2 = numpy_to_pose(appr_rot_negative_pose)
+        wp_3 = numpy_to_pose(bin_rot_positive_pose)
+        wp_4 = numpy_to_pose(bin_rot_negative_pose)
+        wp_start = numpy_to_pose(evaluation_center_pose)
+
+        # Create waypoint list
+        waypoints = [wp_start,
+                     wp_1,
+                     wp_start,
+                     wp_2,
+                     wp_start,
+                     wp_3,
+                     wp_start,
+                     wp_4,
+                     wp_start]
+
+        # Move the robot
+        motion_success = self.execute_trajectory(waypoints)
+        
+        # self._move_group.set_pose_targets(waypoints)
+        # self._move_group.go()
+
+        # self.go_to_pose(wp_1)
+        # self.go_to_pose(wp_2)
+        # self.go_to_pose(wp_3)
+        # self.go_to_pose(wp_4)
+
+
+        return True
+
 
 def main():
 
