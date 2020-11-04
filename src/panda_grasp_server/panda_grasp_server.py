@@ -78,10 +78,13 @@ class NodeConfig(object):
         # Configure planner ID
         self._planner_id = rospy.get_param("~planning/planner_id", "RRTkConfigDefault")
 
+        # Configure the end effector to use in the move group 
+        self._eef_link_id = rospy.get_param("~planning/eef_link_id", "panda_hand")
+
         # Enable Rviz visualization of trajectories
         self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
 
-
+        
 class PandaActionServer(object):
 
     def __init__(self, config):
@@ -93,8 +96,9 @@ class PandaActionServer(object):
         self._group_name = "panda_arm"
         self._move_group = moveit_commander.MoveGroupCommander(
             self._group_name)
-        self._move_group.set_end_effector_link("panda_tcp")
+        # self._move_group.set_end_effector_link("panda_tcp")
         # self._move_group.set_end_effector_link("panda_hand")
+        self._move_group.set_end_effector_link(config._eef_link_id)
         self._eef_link = self._move_group.get_end_effector_link()
         self._move_group_hand = moveit_commander.MoveGroupCommander(
             "hand")
@@ -240,7 +244,6 @@ class PandaActionServer(object):
         # Not sure if I need to add the box first
         # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
         self._scene.attach_box('panda_link0', 'workbench', pose=workbench_pose, size=config._bench_dimensions, touch_links=['panda_link0', 'panda_link1'])
-
 
         # Turn off collisions between link_0 and workbench
         #TODO: rewrite this!
