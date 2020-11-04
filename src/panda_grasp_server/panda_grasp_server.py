@@ -78,13 +78,12 @@ class NodeConfig(object):
         # Configure planner ID
         self._planner_id = rospy.get_param("~planning/planner_id", "RRTkConfigDefault")
 
-        # Configure the end effector to use in the move group 
+        # Configure the end effector to use in the move group
         self._eef_link_id = rospy.get_param("~planning/eef_link_id", "panda_hand")
 
         # Enable Rviz visualization of trajectories
         self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
 
-        
 class PandaActionServer(object):
 
     def __init__(self, config):
@@ -630,7 +629,7 @@ class PandaActionServer(object):
 
         return position, quaternion
 
-    def grasp(self, width, force=0.01, epsilon=0.03, velocity=1):
+    def grasp(self, width, force=1, epsilon=0.03, velocity=0.5):
 
         # Execute grasp directly with the gripper action server
         # Not sure if this is the proper way to do it within MoveIt though
@@ -641,9 +640,8 @@ class PandaActionServer(object):
         grasp_goal.goal.speed = velocity
         grasp_goal.goal.force = force
 
-
         self._grasp_action_client.send_goal(grasp_goal.goal)
-        self._grasp_action_client.wait_for_result(rospy.Duration(5))
+        self._grasp_action_client.wait_for_result(rospy.Duration(10))
 
         grasp_result = self._grasp_action_client.get_result()
 
