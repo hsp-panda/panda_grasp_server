@@ -9,7 +9,7 @@ import geometry_msgs
 import moveit_commander
 import moveit_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
-from tf.transformations import quaternion_from_matrix, quaternion_matrix
+from tf.transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
 from threading import Lock
 
 from panda_ros_common.msg import PandaState
@@ -25,6 +25,9 @@ from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspRespo
                                     PandaSetVelAccelScalingFactors, PandaSetVelAccelScalingFactorsRequest, PandaSetVelAccelScalingFactorsResponse
                                     )
 
+import actionlib
+from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
+from franka_gripper.msg import MoveAction, MoveActionGoal, MoveActionResult
 
 def all_close(goal, actual, tolerance):
 
@@ -75,9 +78,11 @@ class NodeConfig(object):
         # Configure planner ID
         self._planner_id = rospy.get_param("~planning/planner_id", "RRTkConfigDefault")
 
+        # Configure the end effector to use in the move group
+        self._eef_link_id = rospy.get_param("~planning/eef_link_id", "panda_hand")
+
         # Enable Rviz visualization of trajectories
         self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
-
 
 class PandaActionServer(object):
 
@@ -90,8 +95,9 @@ class PandaActionServer(object):
         self._group_name = "panda_arm"
         self._move_group = moveit_commander.MoveGroupCommander(
             self._group_name)
-        self._move_group.set_end_effector_link("panda_tcp")
+        # self._move_group.set_end_effector_link("panda_tcp")
         # self._move_group.set_end_effector_link("panda_hand")
+        self._move_group.set_end_effector_link(config._eef_link_id)
         self._eef_link = self._move_group.get_end_effector_link()
         self._move_group_hand = moveit_commander.MoveGroupCommander(
             "hand")
@@ -178,6 +184,13 @@ class PandaActionServer(object):
                                                 PandaSetVelAccelScalingFactors,
                                                 self.set_vel_accel_scaling_factor_callback)
 
+        # Configure gripper action clients
+        self._grasp_action_client = actionlib.SimpleActionClient("/franka_gripper/grasp", GraspAction)
+        self._grasp_action_client.wait_for_server()
+
+        self._move_fingers_action_client = actionlib.SimpleActionClient("/franka_gripper/move", MoveAction)
+        self._move_fingers_action_client.wait_for_server()
+
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
 
@@ -193,13 +206,15 @@ class PandaActionServer(object):
         # Alternative home pose in joint values
         # This home pose is the same defined in the libfranka tutorials
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        self._home_pose_joints[0:7] = [0,
-                                       -math.pi/4,
-                                       0,
-                                       -3*math.pi/4,
-                                       0,
-                                       math.pi/2,
-                                       math.pi/4]
+        # self._home_pose_joints[0:7] = [0,
+        #                                -math.pi/4,
+        #                                0,
+        #                                -3*math.pi/4,
+        #                                0,
+        #                                math.pi/2,
+        #                                math.pi/4]
+
+        # Natural point of view home pose
         self._home_pose_joints[0:7] = [-0.12078503605043679,
                                        -1.2980767531980548,
                                        0.026837484857365677,
@@ -228,7 +243,6 @@ class PandaActionServer(object):
         # Not sure if I need to add the box first
         # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
         self._scene.attach_box('panda_link0', 'workbench', pose=workbench_pose, size=config._bench_dimensions, touch_links=['panda_link0', 'panda_link1'])
-
 
         # Turn off collisions between link_0 and workbench
         #TODO: rewrite this!
@@ -317,14 +331,19 @@ class PandaActionServer(object):
 
     def open_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
-        if joint_goal[0] <= 0.03 and joint_goal[1] <= 0.03:
+        if joint_goal[0] <= 0.04 and joint_goal[1] <= 0.04:
             return self.command_gripper(0.08)
         else:
             rospy.loginfo("gripper already open")
             return False
 
-    def command_gripper(self, gripper_width):
+    def command_gripper_legacy(self, gripper_width):
 
+        #TODO this implementation is not working well.
+        # It only works fine when opening the gripper
+        # When closing, the gripper always goes to zero aperture. 
+        # I should find a way to retime the closing trajectory, since the controller seems to fail while closing
+        # A decent way to reimplement this would be to use the GripperMove action
         joint_goal = self._move_group_hand.get_current_joint_values()
         joint_goal[0] = gripper_width/2.
         joint_goal[1] = gripper_width/2.
@@ -332,7 +351,22 @@ class PandaActionServer(object):
         self._move_group_hand.go(joint_goal, wait=True)
         self._move_group_hand.stop()
         current_joints = self._move_group_hand.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.001)
+        return all_close(joint_goal, current_joints, 0.01)
+
+    def command_gripper(self, gripper_width, velocity=0.3):
+
+        # Use the actionlib package to queue a move action goal
+
+        move_fingers_goal = MoveActionGoal()
+        move_fingers_goal.goal.width = gripper_width
+        move_fingers_goal.goal.speed = velocity
+
+        self._move_fingers_action_client.send_goal(move_fingers_goal.goal)
+        self._move_fingers_action_client.wait_for_result(rospy.Duration(10))
+
+        move_fingers_result = self._move_fingers_action_client.get_result()
+
+        return move_fingers_result.success
 
     def get_gripper_state(self):
         joint_poses = self._move_group_hand.get_current_joint_values()
@@ -461,7 +495,7 @@ class PandaActionServer(object):
                                         velocity_scaling_factor=self._max_velocity_scaling_factor,
                                         acceleration_scaling_factor=self._max_acceleration_scaling_factor)
 
-        if fraction > 0.99:
+        if fraction > 0.95:
             msg = "Moving robot arm. Planned " + str(fraction) + " of the trajectory"
             rospy.loginfo(msg)
             self._move_group.execute(plan, wait=True)
@@ -595,6 +629,24 @@ class PandaActionServer(object):
 
         return position, quaternion
 
+    def grasp(self, width, force=1, epsilon=0.03, velocity=0.5):
+
+        # Execute grasp directly with the gripper action server
+        # Not sure if this is the proper way to do it within MoveIt though
+
+        grasp_goal = GraspActionGoal()
+        grasp_goal.goal.width = width
+        grasp_goal.goal.epsilon.inner = grasp_goal.goal.epsilon.outer = epsilon
+        grasp_goal.goal.speed = velocity
+        grasp_goal.goal.force = force
+
+        self._grasp_action_client.send_goal(grasp_goal.goal)
+        self._grasp_action_client.wait_for_result(rospy.Duration(10))
+
+        grasp_result = self._grasp_action_client.get_result()
+
+        return grasp_result.success
+
     def do_grasp_callback(self, req):
 
         rospy.loginfo('%s: Executing grasp' %
@@ -637,8 +689,8 @@ class PandaActionServer(object):
         if not self.go_home(use_joints=True):
             return False
 
-        if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
-            return False
+        # if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
+        #     return False
 
         # Try to enforce an orientation constraint in grasp approach
         # self._move_group.clear_pose_targets()
@@ -689,18 +741,70 @@ class PandaActionServer(object):
             approach_waypoints.append(wp)
 
         if not self.execute_trajectory(approach_waypoints):
+
+            # If there is no plan available for this grasp pose, try flipping it around the approach axis and replan
+            rospy.logwarn("Target pose unreachable. Replanning with flipped pose. Press a key to proceed")
+            raw_input()
+
+            target_grasp_pose = np.dot(target_grasp_pose, 
+                                       quaternion_matrix([0, 0, 1, 0]))
+
+            # Define a pre-grasp point along the approach axis
+            approach_offset = quaternion_matrix([0., 0., 0., 1.])
+            approach_offset[:3, 3] = np.array([0., 0., -0.15])
+
+            # Create pregrasp pose
+            pregrasp_pose = geometry_msgs.msg.Pose()
+
+            pregrasp = np.matmul(target_grasp_pose, approach_offset)
+            pregrasp_q = quaternion_from_matrix(pregrasp)
+
+            pregrasp_pose.orientation.x = pregrasp_q[0]
+            pregrasp_pose.orientation.y = pregrasp_q[1]
+            pregrasp_pose.orientation.z = pregrasp_q[2]
+            pregrasp_pose.orientation.w = pregrasp_q[3]
+
+            pregrasp_pose.position.x = pregrasp[0, 3]
+            pregrasp_pose.position.y = pregrasp[1, 3]
+            pregrasp_pose.position.z = pregrasp[2, 3]
+
+            # Re-create waypoints
+            approach_waypoints = []
+            n_approach_waypoints = 10
+            approach_range_x = target_grasp_pose_p.x - pregrasp_pose.position.x
+            approach_range_y = target_grasp_pose_p.y - pregrasp_pose.position.y
+            approach_range_z = target_grasp_pose_p.z - pregrasp_pose.position.z
+            for idx_waypoint in range(n_approach_waypoints + 1):
+                wp = copy.deepcopy(pregrasp_pose)
+                wp.position.x = pregrasp_pose.position.x + approach_range_x * idx_waypoint / n_approach_waypoints
+                wp.position.y = pregrasp_pose.position.y + approach_range_y * idx_waypoint / n_approach_waypoints
+                wp.position.z = pregrasp_pose.position.z + approach_range_z * idx_waypoint / n_approach_waypoints
+
+                approach_waypoints.append(wp)
+
+            # Re-attempt with the flipped pose
+            if not self.execute_trajectory(approach_waypoints):
+                rospy.logwarn("Replanning failed. Grasp pose is unreachable.")
+                self.go_home(use_joints=True)
+                return False
+                
             self.go_home(use_joints=True)
             return False
 
-        self.close_gripper()
-        # if not self.close_gripper():
-            # return False
+        # Try to grasp. In case of failure, go back to pregrasp pose and go home
+        # if not self.grasp(req.width.data):
+        if not self.command_gripper(req.width.data):
+            rospy.logwarn("Grasp failed!")
+            self.open_gripper()
+            self.go_to_pose(pregrasp_pose)
+            self.go_home(use_joints=True)
+            return False
 
         if not self.go_to_pose(pregrasp_pose, message="Moving back from grasping pose"):
             return False
 
         lift_pose = req.grasp.pose
-        lift_pose.position.z += 0.30
+        lift_pose.position.z += 0.20
 
         if not self.go_to_pose(lift_pose, message="Lifting from grasping pose"):
             return False
@@ -711,6 +815,9 @@ class PandaActionServer(object):
         rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
         rospy.loginfo("Grasp success? " + str(grasp_success))
 
+        # Check stability
+        self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
+
         # Move object out of workspace
         next_pose = lift_pose
         next_pose.orientation.x = 1
@@ -718,28 +825,119 @@ class PandaActionServer(object):
         next_pose.orientation.z = 0
         next_pose.orientation.w = 0
 
-        if not self.go_to_pose(next_pose):
-            return False
+        # if not self.go_to_pose(next_pose):
+        #     return False
 
         next_pose.position.x = 0.0
         next_pose.position.y = -0.55
-        next_pose.position.z = 0.3
+        next_pose.position.z = 0.4
 
         if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
             return False
 
-        if not self.open_gripper():
-            return False
+        self.open_gripper()
 
-        if not self.go_home(use_joints=True):
-            return False
+        self.go_home(use_joints=True)
+
+        return grasp_success
+
+
+    def evaluate_stability(self, grasp_pose, tcp_travel, approach_rotation_angle=np.pi/4, binormal_rotation_angle=np.pi/6):
+
+        # Evaluate stability of the grasp according to GRASPA v1.0
+        # Approach and binormal rotation angles are in radians
+        # tcp_travel is the 3D point to take the tcp to (while maintaining orientation) before executing rotations
+
+        # Get initial orientation as a 4x4 homogeneous matrix
+        # Rotation is the grasp rotation
+        # Position of the tcp is tcp_travel
+        grasp_orientation_quat = [grasp_pose.orientation.x, 
+                                  grasp_pose.orientation.y, 
+                                  grasp_pose.orientation.z, 
+                                  grasp_pose.orientation.w]
+        grasp_orientation_m = quaternion_matrix(grasp_orientation_quat)
+
+        evaluation_center_pose = grasp_orientation_m
+        evaluation_center_pose[:3, 3] = np.array([tcp_travel[0],
+                                                  tcp_travel[1],
+                                                  tcp_travel[2]])
+        
+        # Compute rotations around axes in matrix form
+        approach_axis = grasp_orientation_m[:3, 2]
+        appr_rot_positive = rotation_matrix(angle=approach_rotation_angle,
+                                            direction=approach_axis,
+                                            point=np.zeros(3)
+                                            )
+        appr_rot_negative = rotation_matrix(angle=-approach_rotation_angle,
+                                            direction=approach_axis,
+                                            point=np.zeros(3)
+                                            )
+        binormal_axis = grasp_orientation_m[:3, 1]
+        bin_rot_positive = rotation_matrix(angle=binormal_rotation_angle,
+                                           direction=binormal_axis,
+                                           point=np.zeros(3)
+                                           )
+        bin_rot_negative = rotation_matrix(angle=-binormal_rotation_angle,
+                                           direction=binormal_axis,
+                                           point=np.zeros(3)
+                                           )
+        
+
+        # Obtain target poses
+        appr_rot_positive_pose = np.dot(evaluation_center_pose, appr_rot_positive)
+        appr_rot_negative_pose = np.dot(evaluation_center_pose, appr_rot_negative)
+        bin_rot_positive_pose = np.dot(evaluation_center_pose, bin_rot_positive)
+        bin_rot_negative_pose = np.dot(evaluation_center_pose, bin_rot_negative)
+
+        def numpy_to_pose(pose_4x4):
+            
+            pose_msg = geometry_msgs.msg.Pose()
+
+            # order as in geometry_msg/Pose.msg
+            position_list = pose_4x4[:3, 3].tolist()
+            orientation_list = quaternion_from_matrix(pose_4x4).tolist()
+
+            pose_msg.position.x, pose_msg.position.y, pose_msg.position.z = [val for val in position_list]
+            pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w = [val for val in orientation_list]
+
+            return pose_msg
+
+        wp_1 = numpy_to_pose(appr_rot_positive_pose)
+        wp_2 = numpy_to_pose(appr_rot_negative_pose)
+        wp_3 = numpy_to_pose(bin_rot_positive_pose)
+        wp_4 = numpy_to_pose(bin_rot_negative_pose)
+        wp_start = numpy_to_pose(evaluation_center_pose)
+
+        # Create waypoint list
+        waypoints = [wp_start,
+                     wp_1,
+                     wp_start,
+                     wp_2,
+                     wp_start,
+                     wp_3,
+                     wp_start,
+                     wp_4,
+                     wp_start]
+
+        # Move the robot
+        # motion_success = self.execute_trajectory(waypoints)
+        
+        # self._move_group.set_pose_targets(waypoints)
+        # self._move_group.go()
+
+        self.go_to_pose(wp_1)
+        self.go_to_pose(wp_2)
+        self.go_to_pose(wp_3)
+        self.go_to_pose(wp_4)
+
 
         return True
+
 
 def main():
 
     # Initialize the ROS node.
-    rospy.init_node("panda_action_server")
+    rospy.init_node("panda_grasp_server")
 
     # Config
     config = NodeConfig()

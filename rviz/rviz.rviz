@@ -276,13 +276,13 @@ Visualization Manager:
         camera_depth_optical_frame:
           Value: false
         camera_link:
-          Value: false
-        panda_EE:
           Value: true
+        panda_EE:
+          Value: false
         panda_K:
           Value: false
         panda_hand:
-          Value: true
+          Value: false
         panda_leftfinger:
           Value: false
         panda_link0:
@@ -306,7 +306,7 @@ Visualization Manager:
         panda_rightfinger:
           Value: false
         panda_tcp:
-          Value: false
+          Value: true
         world:
           Value: true
       Marker Scale: 1
@@ -351,8 +351,7 @@ Visualization Manager:
       Marker Topic: /gpd_bench/gpd_grasp_planner
       Name: MarkerArray
       Namespaces:
-        finger: true
-        hand_base: true
+        {}
       Queue Size: 100
       Value: true
   Enabled: true
@@ -372,7 +371,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 0.8756886720657349
+      Distance: 2.7197561264038086
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -387,10 +386,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.6902030110359192
+      Pitch: 0.48020321130752563
       Target Frame: panda_link0
       Value: XYOrbit (rviz)
-      Yaw: 5.2249579429626465
+      Yaw: 5.234952926635742
     Saved: ~
 Window Geometry:
   Displays:
@@ -408,5 +407,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 1920
-  X: 0
+  X: 2240
   Y: 0
