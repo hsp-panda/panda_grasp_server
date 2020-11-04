@@ -27,6 +27,7 @@ from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspRespo
 
 import actionlib
 from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
+from franka_gripper.msg import MoveAction, MoveActionGoal, MoveActionResult
 
 def all_close(goal, actual, tolerance):
 
@@ -180,9 +181,12 @@ class PandaActionServer(object):
                                                 PandaSetVelAccelScalingFactors,
                                                 self.set_vel_accel_scaling_factor_callback)
 
-        # Configure gripper action client
+        # Configure gripper action clients
         self._grasp_action_client = actionlib.SimpleActionClient("/franka_gripper/grasp", GraspAction)
         self._grasp_action_client.wait_for_server()
+
+        self._move_fingers_action_client = actionlib.SimpleActionClient("/franka_gripper/move", MoveAction)
+        self._move_fingers_action_client.wait_for_server()
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -326,13 +330,18 @@ class PandaActionServer(object):
     def open_gripper(self):
         joint_goal = self._move_group_hand.get_current_joint_values()
         if joint_goal[0] <= 0.04 and joint_goal[1] <= 0.04:
-            return self.command_gripper(0.079)
+            return self.command_gripper(0.08)
         else:
             rospy.loginfo("gripper already open")
             return False
 
-    def command_gripper(self, gripper_width):
+    def command_gripper_legacy(self, gripper_width):
 
+        #TODO this implementation is not working well.
+        # It only works fine when opening the gripper
+        # When closing, the gripper always goes to zero aperture. 
+        # I should find a way to retime the closing trajectory, since the controller seems to fail while closing
+        # A decent way to reimplement this would be to use the GripperMove action
         joint_goal = self._move_group_hand.get_current_joint_values()
         joint_goal[0] = gripper_width/2.
         joint_goal[1] = gripper_width/2.
@@ -340,7 +349,22 @@ class PandaActionServer(object):
         self._move_group_hand.go(joint_goal, wait=True)
         self._move_group_hand.stop()
         current_joints = self._move_group_hand.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.001)
+        return all_close(joint_goal, current_joints, 0.01)
+
+    def command_gripper(self, gripper_width, velocity=0.3):
+
+        # Use the actionlib package to queue a move action goal
+
+        move_fingers_goal = MoveActionGoal()
+        move_fingers_goal.goal.width = gripper_width
+        move_fingers_goal.goal.speed = velocity
+
+        self._move_fingers_action_client.send_goal(move_fingers_goal.goal)
+        self._move_fingers_action_client.wait_for_result(rospy.Duration(10))
+
+        move_fingers_result = self._move_fingers_action_client.get_result()
+
+        return move_fingers_result.success
 
     def get_gripper_state(self):
         joint_poses = self._move_group_hand.get_current_joint_values()
@@ -767,7 +791,8 @@ class PandaActionServer(object):
             return False
 
         # Try to grasp. In case of failure, go back to pregrasp pose and go home
-        if not self.grasp(req.width.data):
+        # if not self.grasp(req.width.data):
+        if not self.command_gripper(req.width.data):
             rospy.logwarn("Grasp failed!")
             self.open_gripper()
             self.go_to_pose(pregrasp_pose)
@@ -894,15 +919,15 @@ class PandaActionServer(object):
                      wp_start]
 
         # Move the robot
-        motion_success = self.execute_trajectory(waypoints)
+        # motion_success = self.execute_trajectory(waypoints)
         
         # self._move_group.set_pose_targets(waypoints)
         # self._move_group.go()
 
-        # self.go_to_pose(wp_1)
-        # self.go_to_pose(wp_2)
-        # self.go_to_pose(wp_3)
-        # self.go_to_pose(wp_4)
+        self.go_to_pose(wp_1)
+        self.go_to_pose(wp_2)
+        self.go_to_pose(wp_3)
+        self.go_to_pose(wp_4)
 
 
         return True
@@ -911,7 +936,7 @@ class PandaActionServer(object):
 def main():
 
     # Initialize the ROS node.
-    rospy.init_node("panda_action_server")
+    rospy.init_node("panda_grasp_server")
 
     # Config
     config = NodeConfig()
