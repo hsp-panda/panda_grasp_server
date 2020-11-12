@@ -5,10 +5,13 @@
 
     <arg name="start_realsense"                         default="true" />
 
+    <arg name="rviz_config"                             default="rviz.rviz" />
+
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch">
         <arg name="load_gripper"                    value="$(arg load_gripper)" />
         <arg name="robot_ip"                        value="$(arg robot_ip)" />
+        <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
     </include>
 
     <!-- Start realsense, if necessary -->
@@ -21,7 +24,7 @@
     <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node">
         <param name="workspace/table_height"            value="0.13" />
         <!-- Table size and bench size are supposed to be x,y,z -->
-        <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" /> 
+        <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" />
         <param name="workspace/bench_size"              value="[0.6, 0.6, 0.6]" type="yaml"/>
         <!-- Offset expressed in x,y coordinates with respect to the bench top surface center -->
         <param name="workspace/bench_mount_xy"          value="[0.1, 0.0]" type="yaml"/>
