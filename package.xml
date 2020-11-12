@@ -74,7 +74,7 @@
   <exec_depend>tf2_ros</exec_depend>
   <exec_depend>franka_msgs</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
-  <exec_depend>vision_opencv</exec_depend>
+  <!-- <exec_depend>vision_opencv</exec_depend> -->
   <exec_depend>cv_bridge</exec_depend>
   <exec_depend>panda_ros_common</exec_depend>
   <exec_depend>actionlib</exec_depend>
