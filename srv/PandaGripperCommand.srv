@@ -1,7 +1,0 @@
-# Request
-float64 width
-bool close_gripper
-bool open_gripper
----
-# Reply
-bool success

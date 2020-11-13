@@ -1,7 +1,0 @@
-# request
-geometry_msgs/PoseStamped home_pose
-float64[7] home_joints
-bool use_joints                             # set this to true to use joint values instead of a pose
----
-# response
-bool success
