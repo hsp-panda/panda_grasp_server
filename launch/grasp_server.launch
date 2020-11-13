@@ -7,6 +7,8 @@
 
     <arg name="rviz_config"                             default="rviz.rviz" />
 
+    <arg name="enable_force_grasp"                      default="false" />
+
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch">
         <arg name="load_gripper"                    value="$(arg load_gripper)" />
@@ -32,6 +34,7 @@
         <param name="planning/max_acc_scaling_factor"   value="0.3" />
         <param name="planning/eef_link_id"              value="panda_tcp" if="$(arg load_gripper)"/>
         <param name="planning/eef_link_id"              value="panda_hand" unless="$(arg load_gripper)"/>
+        <param name="ops_params/enable_force_grasp"     value="$(arg enable_force_grasp)"/>
     </node>
 
 </launch>

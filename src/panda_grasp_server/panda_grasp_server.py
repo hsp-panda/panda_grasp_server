@@ -28,6 +28,7 @@ from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspRespo
 import actionlib
 from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
 from franka_gripper.msg import MoveAction, MoveActionGoal, MoveActionResult
+from franka_gripper.msg import StopAction, StopActionGoal, StopActionResult
 
 def all_close(goal, actual, tolerance):
 
@@ -84,6 +85,9 @@ class NodeConfig(object):
         # Enable Rviz visualization of trajectories
         self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
 
+        # Enable force-controlled grasping
+        self._enable_force_grasp = rospy.get_param("~ops_params/enable_force_grasp", False)
+
 class PandaActionServer(object):
 
     def __init__(self, config):
@@ -128,6 +132,9 @@ class PandaActionServer(object):
         # Configure status monitor condition
         self._stop_mutex = Lock()
         self._motion_stopped = False
+
+        # Set the force grasp flag
+        self._enable_force_grasp = config._enable_force_grasp
 
         # Configure user input server
         # self._cmd_srv = rospy.Service(config._user_cmd_service_name,
@@ -190,6 +197,9 @@ class PandaActionServer(object):
 
         self._move_fingers_action_client = actionlib.SimpleActionClient("/franka_gripper/move", MoveAction)
         self._move_fingers_action_client.wait_for_server()
+
+        self._stop_gripper_action_client = actionlib.SimpleActionClient("/franka_gripper/stop", StopAction)
+        self._stop_gripper_action_client.wait_for_server()
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -337,22 +347,6 @@ class PandaActionServer(object):
             rospy.loginfo("gripper already open")
             return False
 
-    def command_gripper_legacy(self, gripper_width):
-
-        #TODO this implementation is not working well.
-        # It only works fine when opening the gripper
-        # When closing, the gripper always goes to zero aperture. 
-        # I should find a way to retime the closing trajectory, since the controller seems to fail while closing
-        # A decent way to reimplement this would be to use the GripperMove action
-        joint_goal = self._move_group_hand.get_current_joint_values()
-        joint_goal[0] = gripper_width/2.
-        joint_goal[1] = gripper_width/2.
-
-        self._move_group_hand.go(joint_goal, wait=True)
-        self._move_group_hand.stop()
-        current_joints = self._move_group_hand.get_current_joint_values()
-        return all_close(joint_goal, current_joints, 0.01)
-
     def command_gripper(self, gripper_width, velocity=0.3):
 
         # Use the actionlib package to queue a move action goal
@@ -364,7 +358,16 @@ class PandaActionServer(object):
         self._move_fingers_action_client.send_goal(move_fingers_goal.goal)
         self._move_fingers_action_client.wait_for_result(rospy.Duration(10))
 
+        # If the goal is still active after the duration, send a stop goal
+
         move_fingers_result = self._move_fingers_action_client.get_result()
+
+        if not move_fingers_result:
+            stop_fingers_goal = StopActionGoal()
+            self._stop_gripper_action_client.send_goal(stop_fingers_goal)
+            self._stop_gripper_action_client.wait_for_result(rospy.Duration(5))
+
+            return False
 
         return move_fingers_result.success
 
@@ -632,20 +635,30 @@ class PandaActionServer(object):
     def grasp(self, width, force=1, epsilon=0.03, velocity=0.5):
 
         # Execute grasp directly with the gripper action server
-        # Not sure if this is the proper way to do it within MoveIt though
+        # Different behaviour according to the enable_force_grasp flag
 
-        grasp_goal = GraspActionGoal()
-        grasp_goal.goal.width = width
-        grasp_goal.goal.epsilon.inner = grasp_goal.goal.epsilon.outer = epsilon
-        grasp_goal.goal.speed = velocity
-        grasp_goal.goal.force = force
+        if self._enable_force_grasp:
 
-        self._grasp_action_client.send_goal(grasp_goal.goal)
-        self._grasp_action_client.wait_for_result(rospy.Duration(10))
+            # Use the franka_gripper grasp action
 
-        grasp_result = self._grasp_action_client.get_result()
+            grasp_goal = GraspActionGoal()
+            grasp_goal.goal.width = width
+            grasp_goal.goal.epsilon.inner = grasp_goal.goal.epsilon.outer = epsilon
+            grasp_goal.goal.speed = velocity
+            grasp_goal.goal.force = force
 
-        return grasp_result.success
+            self._grasp_action_client.send_goal(grasp_goal.goal)
+            self._grasp_action_client.wait_for_result(rospy.Duration(10))
+
+            grasp_result = self._grasp_action_client.get_result()
+
+        else:
+
+            # Use the franka_gripper move action
+
+            grasp_result = self.command_gripper(width-0.01, velocity)
+
+        return grasp_result
 
     def do_grasp_callback(self, req):
 
@@ -746,7 +759,7 @@ class PandaActionServer(object):
             rospy.logwarn("Target pose unreachable. Replanning with flipped pose. Press a key to proceed")
             raw_input()
 
-            target_grasp_pose = np.dot(target_grasp_pose, 
+            target_grasp_pose = np.dot(target_grasp_pose,
                                        quaternion_matrix([0, 0, 1, 0]))
 
             # Define a pre-grasp point along the approach axis
@@ -787,13 +800,13 @@ class PandaActionServer(object):
                 rospy.logwarn("Replanning failed. Grasp pose is unreachable.")
                 self.go_home(use_joints=True)
                 return False
-                
+
             self.go_home(use_joints=True)
             return False
 
         # Try to grasp. In case of failure, go back to pregrasp pose and go home
-        # if not self.grasp(req.width.data):
-        if not self.command_gripper(req.width.data):
+
+        if not self.grasp(req.width.data):
             rospy.logwarn("Grasp failed!")
             self.open_gripper()
             self.go_to_pose(pregrasp_pose)
@@ -851,9 +864,9 @@ class PandaActionServer(object):
         # Get initial orientation as a 4x4 homogeneous matrix
         # Rotation is the grasp rotation
         # Position of the tcp is tcp_travel
-        grasp_orientation_quat = [grasp_pose.orientation.x, 
-                                  grasp_pose.orientation.y, 
-                                  grasp_pose.orientation.z, 
+        grasp_orientation_quat = [grasp_pose.orientation.x,
+                                  grasp_pose.orientation.y,
+                                  grasp_pose.orientation.z,
                                   grasp_pose.orientation.w]
         grasp_orientation_m = quaternion_matrix(grasp_orientation_quat)
 
@@ -861,7 +874,7 @@ class PandaActionServer(object):
         evaluation_center_pose[:3, 3] = np.array([tcp_travel[0],
                                                   tcp_travel[1],
                                                   tcp_travel[2]])
-        
+
         # Compute rotations around axes in matrix form
         approach_axis = grasp_orientation_m[:3, 2]
         appr_rot_positive = rotation_matrix(angle=approach_rotation_angle,
@@ -881,7 +894,7 @@ class PandaActionServer(object):
                                            direction=binormal_axis,
                                            point=np.zeros(3)
                                            )
-        
+
 
         # Obtain target poses
         appr_rot_positive_pose = np.dot(evaluation_center_pose, appr_rot_positive)
@@ -890,7 +903,7 @@ class PandaActionServer(object):
         bin_rot_negative_pose = np.dot(evaluation_center_pose, bin_rot_negative)
 
         def numpy_to_pose(pose_4x4):
-            
+
             pose_msg = geometry_msgs.msg.Pose()
 
             # order as in geometry_msg/Pose.msg
@@ -921,7 +934,7 @@ class PandaActionServer(object):
 
         # Move the robot
         # motion_success = self.execute_trajectory(waypoints)
-        
+
         # self._move_group.set_pose_targets(waypoints)
         # self._move_group.go()
 
