@@ -113,10 +113,5 @@ class GRASPAResult(object):
         with open(filename, "w") as handle:
             handle.write(domstring.toprettyxml())
 
-gr = GRASPAResult()
-gr._board_pose.orientation.x = 1.0
-gr._grasp_pose.orientation.x = 1.0
-gr.save_result()
-
 
 
