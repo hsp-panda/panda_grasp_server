@@ -23,7 +23,7 @@
     </include>
 
     <!-- Start the grasp and movement server node -->
-    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node">
+    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen">
         <param name="workspace/table_height"            value="0.13" />
         <!-- Table size and bench size are supposed to be x,y,z -->
         <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" />
