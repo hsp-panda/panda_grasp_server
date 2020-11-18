@@ -1009,8 +1009,18 @@ class PandaActionServer(object):
             rospy.set_param("~ops_param/current_obj", grasp_obj)
 
         # Get scores
-        grasped_score = int(float(raw_input("Object grasped? [0.0, 1.0]")))
-        stab_score = float(raw_input("Enter stability score [0.0, 1.0]"))
+        grasped_score = -1.0
+        while (grasped_score < 0.0) or (grasped_score > 1.0):
+            try:
+                grasped_score = float(raw_input("Object grasped? [0.0, 1.0]"))
+            except ValueError:
+                grasped_score = -1.0
+        stab_score = -1.0
+        while (stab_score < 0.0) or (stab_score > 1.0):
+            try:
+                stab_score = float(raw_input("Enter stability score [0.0, 1.0]"))
+            except ValueError:
+                stab_score = -1.0
 
         # Get the board pose
         if not graspa_board_pose:
@@ -1021,7 +1031,7 @@ class PandaActionServer(object):
         grasp_result.set_poses(graspa_board_pose.pose, grasp_pose.pose if isinstance(grasp_pose, geometry_msgs.msg.PoseStamped) else grasp_pose)
         grasp_result.set_obj_name(grasp_obj)
         grasp_result.set_stability_score(stab_score)
-        grasp_result.set_grasped_score(stab_score)
+        grasp_result.set_grasped_score(grasped_score)
 
         try:
 
