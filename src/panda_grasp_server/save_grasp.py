@@ -51,7 +51,7 @@ class GRASPAResult(object):
 
         self._object_name = str(obj_name)
 
-    def save_result(self):
+    def save_result_simple(self):
 
         board_rotation = pq.Quaternion(self._board_pose.orientation.w,
                                        self._board_pose.orientation.x,
@@ -122,7 +122,7 @@ class GRASPAResult(object):
         with open(filename, "w") as handle:
             handle.write(domstring.toprettyxml())
 
-    def save_edit_result(self):
+    def save_result(self):
 
         board_rotation = pq.Quaternion(self._board_pose.orientation.w,
                                        self._board_pose.orientation.x,
@@ -190,42 +190,11 @@ class GRASPAResult(object):
             graspset_field = manip_object_field.find('GraspSet')
             current_grasp_idx = len(list(graspset_field))
 
-            # grasp_field = ET.SubElement(graspset_field, 'Grasp')
-            # grasp_field.set('name', 'Grasp '+ str(current_grasp_idx))
-            # grasp_field.set('quality', '0')
-            # grasp_field.set('Creation', 'auto')
-            # grasp_field.set('Preshape', 'Grasp Preshape')
-
-            # transform_field = ET.SubElement(grasp_field, 'Transform')
-            # matrix = ET.SubElement(transform_field, 'Matrix4x4')
-            # row1 = ET.SubElement(matrix, 'row1')
-            # row2 = ET.SubElement(matrix, 'row2')
-            # row3 = ET.SubElement(matrix, 'row3')
-            # row4 = ET.SubElement(matrix, 'row4')
-
-            # for col_idx in range(4):
-            #     row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx]))
-            #     row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx]))
-            #     row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx]))
-            #     row4.set('c'+str(col_idx+1), str(grasp_T_board[3,col_idx]))
-
-            # # graspable_field = ET.SubElement(grasp_data, 'Graspable')
-            # # graspable_field.set('quality', str(1))
-
             grasped_field = grasp_data.find('Grasped')
-            # grasped_field_entry = ET.SubElement(grasped_field, 'Grasp')
-            # grasped_field_entry.set('name', 'Grasp ' + str(current_grasp_idx))
-            # grasped_field_entry.set('quality', str(1) if self._grasped_score else str(0))
 
             stability_field = grasp_data.find('GraspStability')
-            # stability_field_entry = ET.SubElement(stability_field, 'Grasp')
-            # stability_field_entry.set('name', 'Grasp '+ str(current_grasp_idx))
-            # stability_field_entry.set('quality', str(self._stability_score))
 
             avoidance_field = grasp_data.find('ObstacleAvoidance')
-            # avoidance_field_entry = ET.SubElement(avoidance_field, 'Grasp')
-            # avoidance_field_entry.set('name', 'Grasp '+ str(current_grasp_idx))
-            # avoidance_field_entry.set('quality', str(0))
 
         else:
 
@@ -249,42 +218,14 @@ class GRASPAResult(object):
             graspset_field.set('RobotType', 'Panda')
             graspset_field.set('EndEffector', 'panda_hand')
 
-            # grasp_field = ET.SubElement(graspset_field, 'Grasp')
-            # grasp_field.set('name', 'Grasp '+ str(0))
-            # grasp_field.set('quality', '0')
-            # grasp_field.set('Creation', 'auto')
-            # grasp_field.set('Preshape', 'Grasp Preshape')
-
-            # transform_field = ET.SubElement(grasp_field, 'Transform')
-            # matrix = ET.SubElement(transform_field, 'Matrix4x4')
-            # row1 = ET.SubElement(matrix, 'row1')
-            # row2 = ET.SubElement(matrix, 'row2')
-            # row3 = ET.SubElement(matrix, 'row3')
-            # row4 = ET.SubElement(matrix, 'row4')
-
-            # for col_idx in range(4):
-            #     row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx]))
-            #     row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx]))
-            #     row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx]))
-            #     row4.set('c'+str(col_idx+1), str(grasp_T_board[3,col_idx]))
-
             graspable_field = ET.SubElement(grasp_data, 'Graspable')
             graspable_field.set('quality', str(1))
 
             grasped_field = ET.SubElement(grasp_data, 'Grasped')
-            # grasped_field_entry = ET.SubElement(grasped_field, 'Grasp')
-            # grasped_field_entry.set('name', 'Grasp ' + str(current_grasp_idx))
-            # grasped_field_entry.set('quality', str(1) if self._grasped_score else str(0))
 
             stability_field = ET.SubElement(grasp_data, 'GraspStability')
-            # stability_field_entry = ET.SubElement(stability_field, 'Grasp')
-            # stability_field_entry.set('name', 'Grasp '+ str(current_grasp_idx))
-            # stability_field_entry.set('quality', str(self._stability_score))
 
             avoidance_field = ET.SubElement(grasp_data, 'ObstacleAvoidance')
-            # avoidance_field_entry = ET.SubElement(avoidance_field, 'Grasp')
-            # avoidance_field_entry.set('name', 'Grasp '+ str(current_grasp_idx))
-            # avoidance_field_entry.set('quality', str(0))
 
         grasp_field = ET.SubElement(graspset_field, 'Grasp')
         grasp_field.set('name', 'Grasp '+ str(current_grasp_idx))
@@ -334,7 +275,3 @@ class GRASPAResult(object):
         xml.normalize()
         with file(filename, 'w') as handle:
             handle.write(xml.toprettyxml(indent = '  '))
-
-
-
-
