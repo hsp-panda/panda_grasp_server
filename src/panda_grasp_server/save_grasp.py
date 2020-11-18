@@ -5,6 +5,7 @@ import numpy as np
 import os
 from xml.dom import minidom
 from xml.dom.minidom import Node
+from rospy_message_converter import message_converter
 
 def remove_blanks(node):
     for x in node.childNodes:
@@ -275,3 +276,20 @@ class GRASPAResult(object):
         xml.normalize()
         with file(filename, 'w') as handle:
             handle.write(xml.toprettyxml(indent = '  '))
+
+        # Save dictionary in ros-friendly language
+
+        filename_json = os.path.join(os.path.abspath(self._savepath), "grasp_" + self._object_name + "_{:03d}.json".format(current_grasp_idx))
+
+        grasp_dict = {
+                    'object' : self._object_name,
+                    'GRASPA_board_pose' : message_converter.convert_ros_message_to_dictionary(self._board_pose),
+                    'grasp_pose' : message_converter.convert_ros_message_to_dictionary(self._grasp_pose),
+                    'grasped_score' : str(1) if self._grasped_score else str(0),
+                    'stability_score' : self._stability_score
+        }
+
+        import json
+        with open(filename_json, 'w') as handle:
+            json_string = json.dumps(grasp_dict)
+            handle.write(json_string)
