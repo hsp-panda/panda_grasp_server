@@ -8,9 +8,9 @@ Uses messages and services defined in `hsp-panda/panda_ros_common`.
 
 Together with the dependencies defined in `package.xml`, this package requires the following packages included in this organization:
 
-- [panda_moveit_config]
-- [franka_ros]
-- [panda_ros_common]
+- [panda_moveit_config](https://github.com/hsp-panda/panda_moveit_config)
+- [franka_ros](https://github.com/hsp-panda/franka_ros)
+- [panda_ros_common](https://github.com/hsp-panda/panda_ros_common)
 
 ### Startup
 
