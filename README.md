@@ -12,6 +12,8 @@ Together with the dependencies defined in `package.xml`, this package requires t
 - [franka_ros](https://github.com/hsp-panda/franka_ros)
 - [panda_ros_common](https://github.com/hsp-panda/panda_ros_common)
 
+To check the dependency status, use `rosdep check panda_grasp_server`.
+
 ### Startup
 
 Use the launch file:
@@ -34,5 +36,4 @@ Expected output:
 You can send commands to the module over ROS services. Use the `rosservice [list | info]` command line tool to view them, the names are pretty straightforward. 
 
 #TODO 
-- include missing packages in the `package.xml`
 - include default rviz view snapshot
