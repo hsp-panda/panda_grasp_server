@@ -764,6 +764,15 @@ class PandaActionServer(object):
         #     self._move_group.clear_path_constraints()
         #     return False
 
+        # Acquire board pose
+        graspa_board_pose = self.get_GRASPA_board_pose()
+
+        if not self.go_to_pose(pregrasp_pose, "Moving to pregrasp pose"):
+            return False
+
+        if not self._enable_force_grasp:
+            self.command_gripper(req.width.data + 0.01)
+
         approach_waypoints = []
         n_approach_waypoints = 10
         approach_range_x = target_grasp_pose_p.x - pregrasp_pose.position.x
@@ -890,8 +899,8 @@ class PandaActionServer(object):
         # if not self.go_to_pose(next_pose):
         #     return False
 
-        next_pose.position.x = 0.0
-        next_pose.position.y = -0.55
+        next_pose.position.x = 0.45
+        next_pose.position.y = -0.5
         next_pose.position.z = 0.4
 
         if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
@@ -907,7 +916,7 @@ class PandaActionServer(object):
         # Save the grasp
         save = raw_input("Save grasp? [y/N]")
         if save.lower() == 'y':
-            self.save_grasp(req.grasp.pose)
+            self.save_grasp(req.grasp.pose, graspa_board_pose)
 
         return grasp_success
 
@@ -995,10 +1004,17 @@ class PandaActionServer(object):
         # self._move_group.set_pose_targets(waypoints)
         # self._move_group.go()
 
-        self.go_to_pose(wp_1)
-        self.go_to_pose(wp_2)
-        self.go_to_pose(wp_3)
-        self.go_to_pose(wp_4)
+        for wp in waypoints:
+            self.go_to_pose(wp)
+        # self.go_to_pose(wp_start)
+        # self.go_to_pose(wp_1)
+        # self.go_to_pose(wp_start)
+        # self.go_to_pose(wp_2)
+        # self.go_to_pose(wp_start)
+        # self.go_to_pose(wp_3)
+        # self.go_to_pose(wp_start)
+        # self.go_to_pose(wp_4)
+        # self.go_to_pose(wp_start)
 
         return True
 
@@ -1021,6 +1037,9 @@ class PandaActionServer(object):
         # pose_board.header.stamp = last_heard_time
         pose_board.pose.orientation.w = 1.0
         pose_board = self._tf_listener.transformPose(frame1, pose_board)
+
+        rospy.loginfo("Acquired GRASPA board pose:")
+        rospy.loginfo(pose_board)
 
         return pose_board
 
