@@ -230,22 +230,31 @@ class PandaActionServer(object):
         # Alternative home pose in joint values
         # This home pose is the same defined in the libfranka tutorials
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        # self._home_pose_joints[0:7] = [0,
-        #                                -math.pi/4,
-        #                                0,
-        #                                -3*math.pi/4,
-        #                                0,
-        #                                math.pi/2,
-        #                                math.pi/4]
+        self._home_pose_joints[0:7] = [0,
+                                       -math.pi/4,
+                                       0,
+                                       -3*math.pi/4,
+                                       0,
+                                       math.pi/2,
+                                       math.pi/4]
 
         # Natural point of view home pose
-        self._home_pose_joints[0:7] = [-0.12078503605043679,
-                                       -1.2980767531980548,
-                                       0.026837484857365677,
-                                       -2.386302989257368,
-                                       0.07335721945762633,
-                                       1.6099749157428742,
-                                       0.7011881882676905]
+        # self._home_pose_joints[0:7] = [-0.12078503605043679,
+        #                                -1.2980767531980548,
+        #                                0.026837484857365677,
+        #                                -2.386302989257368,
+        #                                0.07335721945762633,
+        #                                1.6099749157428742,
+        #                                0.7011881882676905]
+
+        # Top view home pose
+        # self._home_pose_joints[0:7] = [-0.11899186470606302,
+        #                                 0.19508951544466327,
+        #                                 0.16070551717281342,
+        #                                 -0.7810808577788521,
+        #                                 -0.03693424248492326,
+        #                                 0.9725300767315923,
+        #                                 0.8035825639052523]
 
         # Add table as a collision object
         if config._table_height is not None:
