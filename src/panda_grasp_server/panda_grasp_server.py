@@ -503,7 +503,7 @@ class PandaActionServer(object):
 
         return PandaGetStateResponse(robot_state=robot_state)
 
-    def execute_trajectory(self, waypoints):
+    def execute_trajectory(self, waypoints, constraints=None):
 
         # Plan and execute trajectory based on an array of pose waypoints
 
@@ -512,7 +512,8 @@ class PandaActionServer(object):
                                 waypoints=waypoints,
                                 eef_step=0.01,
                                 jump_threshold=0.0,
-                                avoid_collisions=True
+                                avoid_collisions=True,
+                                path_constraints=constraints
                                 )
 
         # Retime trajectory according to velocity/acceleration limits
@@ -776,7 +777,20 @@ class PandaActionServer(object):
 
             approach_waypoints.append(wp)
 
-        if not self.execute_trajectory(approach_waypoints):
+        # Try enforcing a constraint during approach
+        approach_constraints = moveit_msgs.msg.Constraints()
+        orient_constraint = moveit_msgs.msg.OrientationConstraint()
+        orient_constraint.header.frame_id = "panda_link0"
+        orient_constraint.link_name = "panda_tcp"
+        orient_constraint.orientation = pregrasp_pose.orientation
+        orient_constraint.absolute_x_axis_tolerance = 0.1
+        orient_constraint.absolute_y_axis_tolerance = 0.1
+        orient_constraint.absolute_z_axis_tolerance = 0.1
+        orient_constraint.weight = 1.0
+        approach_constraints.orientation_constraints.append(orient_constraint)
+
+
+        if not self.execute_trajectory(approach_waypoints, approach_constraints):
 
             # If there is no plan available for this grasp pose, try flipping it around the approach axis and replan
             rospy.logwarn("Target pose unreachable. Replanning with flipped pose. Press a key to proceed")
@@ -817,6 +831,18 @@ class PandaActionServer(object):
                 wp.position.z = pregrasp_pose.position.z + approach_range_z * idx_waypoint / n_approach_waypoints
 
                 approach_waypoints.append(wp)
+
+            # Try enforcing a constraint during approach
+            approach_constraints = moveit_msgs.msg.Constraints()
+            orient_constraint = moveit_msgs.msg.OrientationConstraint()
+            orient_constraint.header.frame_id = "panda_link0"
+            orient_constraint.link_name = "panda_tcp"
+            orient_constraint.orientation = pregrasp_pose.orientation
+            orient_constraint.absolute_x_axis_tolerance = 0.1
+            orient_constraint.absolute_y_axis_tolerance = 0.1
+            orient_constraint.absolute_z_axis_tolerance = 0.1
+            orient_constraint.weight = 1.0
+            approach_constraints.orientation_constraints.append(orient_constraint)
 
             # Re-attempt with the flipped pose
             if not self.execute_trajectory(approach_waypoints):
