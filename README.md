@@ -31,6 +31,14 @@ There are additional arguments that you can use:
 Expected output: 
 [IMAGE]
 
+### Startup (simulation - experimental)
+
+> Make sure you installed [easy_panda_sim](https://github.com/hsp-panda/panda_ros_common)
+```
+roslaunch easy_panda_sim simulation.launch
+roslaunch panda_grasp_server grasp_server_sim.launch
+```
+
 ### Available commands
 
 You can send commands to the module over ROS services. Use the `rosservice [list | info]` command line tool to view them, the names are pretty straightforward. 
