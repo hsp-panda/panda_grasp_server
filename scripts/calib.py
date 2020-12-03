@@ -125,9 +125,9 @@ if __name__ == '__main__':
         # raw_input()
 
         if idx%theta_steps == 0:
-            rospy.wait_for_service('panda_action_server/panda_home')
+            rospy.wait_for_service('panda_grasp_server/panda_home')
             try:
-                move_home = rospy.ServiceProxy('panda_action_server/panda_home', PandaHome)
+                move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
                 req = PandaHomeRequest(use_joint_values=True)
                 move_success = move_home(req).success
                 if not move_success:
@@ -136,13 +136,13 @@ if __name__ == '__main__':
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
 
-        rospy.wait_for_service('panda_action_server/panda_move_pose')
+        rospy.wait_for_service('panda_grasp_server/panda_move_pose')
         try:
-            move_to_pose = rospy.ServiceProxy('panda_action_server/panda_move_pose', PandaMove)
+            move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_pose', PandaMove)
             move_success = move_to_pose(pose).success
             if move_success:
                 poses_reached+=1
-                get_robot_state = rospy.ServiceProxy('panda_action_server/panda_get_state', PandaGetState)
+                get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
                 robot_state = get_robot_state().robot_state
                 eef_pose = robot_state.eef_state.pose
                 print(eef_pose)
@@ -176,12 +176,12 @@ if __name__ == '__main__':
         except rospy.ServiceException as e:
            print("Service call failed: %s"%e)
 
-    
 
 
-    rospy.wait_for_service('panda_action_server/panda_home')
+
+    rospy.wait_for_service('panda_grasp_server/panda_home')
     try:
-        move_home = rospy.ServiceProxy('panda_action_server/panda_home', PandaHome)
+        move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
         req = PandaHomeRequest(use_joint_values=True)
         success = move_home(req)
         if not success:
