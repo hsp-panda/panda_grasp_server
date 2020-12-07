@@ -28,8 +28,8 @@ There are additional arguments that you can use:
 - `rviz_config:=<custom_rviz_config_path>` if you want a custom rviz file
 - `load_gripper:=false` if you don't need the gripper
 
-Expected output: 
-[IMAGE]
+Expected output: (you may or may not have the ARUCO board detection set up)
+![IMAGE](home.png)
 
 ### Startup (simulation - experimental)
 
