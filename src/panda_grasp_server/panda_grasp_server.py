@@ -276,6 +276,15 @@ class PandaActionServer(object):
         # Not sure if I need to add the box first
         # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
         self._scene.attach_box('panda_link0', 'workbench', pose=workbench_pose, size=config._bench_dimensions, touch_links=['panda_link0', 'panda_link1'])
+        
+        rospy.sleep(2)
+        box_pose = geometry_msgs.msg.PoseStamped()
+        box_pose.header.frame_id = self._robot.get_planning_frame()
+        box_pose.pose.position.x = 0.5
+        box_pose.pose.position.y = 0.0
+        box_pose.pose.position.z = 0.2
+        self._scene.add_box("box", box_pose, (0.15, 0.15, 0.2))
+            
 
         # Turn off collisions between link_0 and workbench
         #TODO: rewrite this!
