@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-#import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import tf
 import rospy
@@ -26,30 +26,39 @@ def camera_data_callback(rgb):
     global camera_image
     camera_image = rgb
 
-def get_trajectory(obj_center: list, radius:float=0.4,  min_theta:float = np.pi / 2 + np.pi/6, max_theta: float = np.pi, min_phi=0, max_phi=2*np.pi, theta_steps=10, phi_steps=5):
+def get_trajectory(obj_center, radius=0.4,  min_theta=np.pi / 2 + np.pi/6, max_theta= np.pi, min_phi=0, max_phi=2*np.pi, theta_steps=10, phi_steps=5):
     # Organize the parameter grid
-    theta_ = np.linspace(min_theta, max_theta, theta_steps)
-    phi_ = np.linspace(min_phi, max_phi, phi_steps)
-    theta, phi = np.meshgrid(theta_, phi_)
+    theta = np.linspace(min_theta, max_theta, theta_steps, endpoint=False)
+    phi = np.linspace(min_phi, max_phi, phi_steps, endpoint=False)
+    
+    # Organize the parameter grid
+    theta_space = np.empty((0,))
+    phi_space = np.empty((0,))
+    for idx in range(phi.size):
+        theta_space = np.append(theta_space, theta)
+        phi_space = np.append(phi_space, phi[idx]*np.ones_like(theta))
+
+    theta_space = np.reshape(theta_space, (1, theta_space.size))
+    phi_space = np.reshape(phi_space, (1, phi_space.size))
 
     # Obtain pose center points
-    x = radius * np.cos(theta) * np.cos(phi) + center[0]
-    y = radius * np.cos(theta) * np.sin(phi) + center[1]
-    z = radius * np.sin(theta) + center[2]
+    x = radius * np.cos(theta_space) * np.cos(phi_space) + obj_center[0]
+    y = radius * np.cos(theta_space) * np.sin(phi_space) + obj_center[1]
+    z = radius * np.sin(theta_space) + obj_center[2]
 
     points = np.hstack((np.transpose(x), np.transpose(y), np.transpose(z)))
-    return points
+    return points, theta_space, phi_space
 
-def get_orientations(obj_center, points):
+def get_orientations(obj_center, points, theta, phi):
     # find the x axis by looking at center of sphere
     # find the y axis by finding the derivative of x and y wrt theta
     # find the z axis by cross product
 
-    z_ax = np.reshape(center, (1, 3)) - points
+    z_ax = np.reshape(obj_center, (1, 3)) - points
     z_ax = normalize_rows(z_ax)
 
-    y_ax_x = -np.sin(theta_space)
-    y_ax_y = np.cos(theta_space)
+    y_ax_x = -np.sin(theta)
+    y_ax_y = np.cos(theta)
     y_ax_z = np.zeros_like(y_ax_x)
 
     y_ax = np.hstack((np.transpose(y_ax_x), np.transpose(y_ax_y), np.transpose(y_ax_z)))
@@ -59,7 +68,7 @@ def get_orientations(obj_center, points):
     x_ax = normalize_rows(x_ax)
     return x_ax, y_ax, z_ax
 
-def set_pose(br, position, orientation):
+def set_pose(br, position, orientation, idx):
     # position = points[i,:]
     # orientation = [x_ax[i,:], y_ax[i, :], z_ax[i, :]]
 
@@ -70,6 +79,7 @@ def set_pose(br, position, orientation):
         y_ax_,
         z_ax_
     )))
+    
 
     pose_quat = quaternion_from_matrix(rot_matrix)
     pose_origin = position
@@ -92,8 +102,7 @@ def set_pose(br, position, orientation):
                      "world"
                      )
 
-    print("Next pose: ")
-    print(pose.pose)
+    return pose
 
 if __name__ == '__main__':
 
@@ -106,10 +115,15 @@ if __name__ == '__main__':
     min_phi = 0
     # max_phi = np.pi / 2 - np.pi / 12
     max_phi = 2 * np.pi
-    theta_steps = 2
-    phi_steps = 1
-    theta = np.linspace(min_theta, max_theta, theta_steps)
-    phi = np.linspace(min_phi, max_phi, phi_steps)
+    theta_steps = 1
+    phi_steps = 4
+    theta = np.linspace(min_theta, max_theta, theta_steps, endpoint=False)
+    phi = np.linspace(min_phi, max_phi, phi_steps, endpoint=False)
+
+    # print angles:
+    print("theta points: ", theta)
+    print("phi points: ", phi)
+
     rad = 0.3
 
     # Define sphere center
@@ -119,10 +133,10 @@ if __name__ == '__main__':
     workdir = '/home/icub/data/test'
 
     # Sample uniformly by euler angles theta and phi
-    points = get_trajectory(center, rad, min_theta, max_theta, theta_steps=theta_steps, phi_steps=phi_steps)
+    points, theta, phi = get_trajectory(center, rad, min_theta, max_theta, theta_steps=theta_steps, phi_steps=phi_steps)
 
     # Get camera orientations w.r.t to points
-    x_ax, y_ax, z_ax = get_orientations(center, points)
+    x_ax, y_ax, z_ax = get_orientations(center, points, theta, phi)
 
     eef_pose = None
 
@@ -143,18 +157,20 @@ if __name__ == '__main__':
     for idx in range(x_ax.shape[0]):
         next_position = points[idx, :]
         next_orientation = [x_ax[idx, :], y_ax[idx, :], z_ax[idx, :]]
-
+        
         # save rotation matrix
         rot_matrix = np.eye(3)
         rot_matrix[:3, :3] = np.transpose(np.stack((
-            x_ax_,
-            y_ax_,
-            z_ax_
+            x_ax[idx, :],
+            y_ax[idx, :],
+            z_ax[idx, :]
         )))
 
-        rotations[i, :, :] = rot_matrix
+        rotations[idx, :, :] = rot_matrix
 
-        set_pose(br, next_position, next_orientation)
+        pose = set_pose(br, next_position, next_orientation, idx)
+        print("Next pose: ")
+        print(pose.pose)
 
         # print("Press any key to proceed")
         # raw_input()
