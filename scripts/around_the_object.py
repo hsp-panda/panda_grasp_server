@@ -1,8 +1,8 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+#import matplotlib.pyplot as plt
+#from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import tf
 import rospy
@@ -106,14 +106,14 @@ if __name__ == '__main__':
     min_phi = 0
     # max_phi = np.pi / 2 - np.pi / 12
     max_phi = 2 * np.pi
-    theta_steps = 5
-    phi_steps = 3
+    theta_steps = 2
+    phi_steps = 1
     theta = np.linspace(min_theta, max_theta, theta_steps)
     phi = np.linspace(min_phi, max_phi, phi_steps)
     rad = 0.3
 
     # Define sphere center
-    center = [0.6, 0, 0.10]
+    center = [0.6, 0, 0.1]
 
     # Define working directory to save images
     workdir = '/home/icub/data/test'
