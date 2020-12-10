@@ -29,7 +29,7 @@ There are additional arguments that you can use:
 - `load_gripper:=false` if you don't need the gripper
 
 Expected output: (you may or may not have the ARUCO board detection set up)
-![IMAGE](home.png)
+![IMAGE](assets/home.png)
 
 ### Startup (simulation - experimental)
 
