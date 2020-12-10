@@ -29,7 +29,28 @@ def camera_data_callback(rgb):
     camera_image = rgb
 
 
-def explore_and_save(workdir, rad):
+
+def fibonacci_sphere(samples=2):
+    phi = np.pi * (3. - np.sqrt(5.))  # golden angle in radians
+
+    i = np.linspace(0, samples, samples, endpoint=False)
+
+    y = 1 - (i / (samples - 1)) * 2
+    radius = np.sqrt(1 - y * y)
+    theta = phi * i
+
+    x = np.cos(theta) * radius
+    z = np.sin(theta) * radius
+
+    return np.stack((x, y, z), axis=1)
+
+def fibonacci_trajectory(samples):
+    pass
+
+
+
+
+def explore_and_save(workdir, rad, theta_steps=24, phi_steps=3):
     # Define ranges of theta and phi
     # min_theta = np.pi / 2 + np.pi / 6
     min_theta = np.pi * 0 # + np.pi / 6
@@ -40,9 +61,9 @@ def explore_and_save(workdir, rad):
     else:
         min_phi = np.pi / 4
     
-    max_phi = np.pi / 2 - np.pi / 6
-    theta_steps = 24
-    phi_steps = 3
+    max_phi = np.pi / 2 - np.pi / 4
+    # theta_steps = 24
+    # phi_steps = 3
     theta = np.linspace(min_theta, max_theta, theta_steps)
     phi = np.linspace(min_phi, max_phi, phi_steps)
     
@@ -65,7 +86,7 @@ def explore_and_save(workdir, rad):
     phi_space = np.reshape(phi_space, (1, phi_space.size))
 
     # Define sphere center
-    center = [0.5, 0.0, 0.15]
+    center = [0.45, 0.0, 0.07]
 
     # Obtain pose center points
     x = rad*np.cos(theta_space)*np.cos(phi_space) + center[0]
@@ -176,15 +197,16 @@ def explore_and_save(workdir, rad):
         except rospy.ServiceException as e:
            print("Service call failed: %s"%e)
 
-    np.save(workdir + '/' + 'feasibles_rad=%.2f.npy' % rad, feasibles)
+    np.save(wdir_rad + '/' + 'feasibles.npy' , feasibles)
+    np.save(wdir_rad + '/' + 'center.npy', np.array(center))
 
 if __name__ == '__main__':
 
     rospy.init_node('calib_generator')
     
-    workdir = '/home/icub/data/test'
+    workdir = '/home/icub/esafronov/data/test'
  
-    radius_list = [0.32, 0.37]
+    radius_list = [0.35]
 
     rad = 0.4
     if len(sys.argv) > 1:
@@ -194,7 +216,7 @@ if __name__ == '__main__':
         os.mkdir(workdir)
 
     for rad in radius_list:
-        explore_and_save(workdir, rad)
+        explore_and_save(workdir, rad, theta_steps=128)
  
     rospy.wait_for_service('panda_grasp_server/panda_home')
     try:
