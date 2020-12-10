@@ -33,7 +33,7 @@ Expected output: (you may or may not have the ARUCO board detection set up)
 
 ### Startup (simulation - experimental)
 
-> Make sure you installed [easy_panda_sim](https://github.com/hsp-panda/panda_ros_common)
+> Make sure you installed [easy_panda_sim](https://github.com/hsp-panda/easy_panda_sim)
 ```
 roslaunch easy_panda_sim simulation.launch
 roslaunch panda_grasp_server grasp_server_sim.launch
