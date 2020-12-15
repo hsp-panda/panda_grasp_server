@@ -322,8 +322,8 @@ def explore_and_save(workdir, rad, theta_steps=96, phi_steps=5):
         except rospy.ServiceException as e:
            print("Service call failed: %s"%e)
 
-    # np.save(wdir_rad + '/' + 'feasibles.npy' , feasibles)
-    # np.save(wdir_rad + '/' + 'center.npy', np.array(center))
+    np.save(wdir_rad + '/' + 'feasibles.npy' , feasibles)
+    np.save(wdir_rad + '/' + 'center.npy', np.array(center))
 
 if __name__ == '__main__':
 

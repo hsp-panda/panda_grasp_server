@@ -280,10 +280,10 @@ class PandaActionServer(object):
         rospy.sleep(2)
         box_pose = geometry_msgs.msg.PoseStamped()
         box_pose.header.frame_id = self._robot.get_planning_frame()
-        box_pose.pose.position.x = 0.5
+        box_pose.pose.position.x = 0.4
         box_pose.pose.position.y = 0.0
         box_pose.pose.position.z = 0.2
-        self._scene.add_box("box", box_pose, (0.15, 0.15, 0.2))
+        self._scene.add_box("box", box_pose, (0.15, 0.15, 0.3))
             
 
         # Turn off collisions between link_0 and workbench
