@@ -172,7 +172,10 @@ class GRASPAResult(object):
         #       ObstacleAvoidance
         #           Grasp
 
-        filename = os.path.join(os.path.abspath(self._savepath), "grasp_" + self._object_name + ".xml")
+        # Filenames in GRASPA are something like YcbObjectName_grasp.xml
+
+        name_graspa_savefile = "Ycb" + "".join([string.capitalize() for string in self._object_name.split('_')])
+        filename = os.path.join(os.path.abspath(self._savepath), name_graspa_savefile, "_grasp.xml")
 
         current_grasp_idx = 0
         tree = None
