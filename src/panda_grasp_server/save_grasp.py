@@ -244,12 +244,17 @@ class GRASPAResult(object):
         row3 = ET.SubElement(matrix, 'row3')
         row4 = ET.SubElement(matrix, 'row4')
 
-        # Multiplication for 1K because Simox uses millimiters as length units...
+        # Multiplication for 1K only in column 3 because Simox uses millimiters as length units...
 
         for col_idx in range(4):
-            row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx] * 1000.0))
-            row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx] * 1000.0))
-            row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx] * 1000.0))
+            if col_idx == 3:
+                row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx] * 1000.0))
+                row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx] * 1000.0))
+                row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx] * 1000.0))
+            else:
+                row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx]))
+                row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx]))
+                row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx]))
             row4.set('c'+str(col_idx+1), str(grasp_T_board[3,col_idx]))
 
         grasped_field = grasp_data.find('Grasped')
