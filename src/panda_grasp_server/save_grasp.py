@@ -220,7 +220,7 @@ class GRASPAResult(object):
             graspset_field = ET.SubElement(manip_object_field, 'GraspSet')
             graspset_field.set('name', 'Benchmark_Layout_X')
             graspset_field.set('RobotType', 'Panda')
-            graspset_field.set('EndEffector', 'panda_hand')
+            graspset_field.set('EndEffector', 'Panda Hand')
 
             graspable_field = ET.SubElement(grasp_data, 'Graspable')
             graspable_field.set('quality', str(1))
