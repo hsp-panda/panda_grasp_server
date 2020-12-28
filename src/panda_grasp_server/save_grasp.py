@@ -210,12 +210,12 @@ class GRASPAResult(object):
             visu_field = ET.SubElement(manip_object_field, 'Visualization')
             visu_filename_field = ET.SubElement(visu_field, 'File')
             visu_filename_field.set('type', 'inventor')
-            visu_filename_field.text = os.path.join('../../../GRASPA-benchmark/data/objects/YCB', self._object_name, 'nontextured.stl')
+            visu_filename_field.text = os.path.join('data/objects/YCB', self._object_name, 'nontextured.stl')
 
             collision_field = ET.SubElement(manip_object_field, 'CollisionModel')
             collision_filename_field = ET.SubElement(collision_field, 'File')
             collision_filename_field.set('type', 'inventor')
-            collision_filename_field.text = os.path.join('../../../GRASPA-benchmark/data/objects/YCB', self._object_name, 'nontextured.stl')
+            collision_filename_field.text = os.path.join('data/objects/YCB', self._object_name, 'nontextured.stl')
 
             graspset_field = ET.SubElement(manip_object_field, 'GraspSet')
             graspset_field.set('name', 'Benchmark_Layout_X')
