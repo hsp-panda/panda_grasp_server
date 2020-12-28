@@ -172,7 +172,10 @@ class GRASPAResult(object):
         #       ObstacleAvoidance
         #           Grasp
 
-        filename = os.path.join(os.path.abspath(self._savepath), "grasp_" + self._object_name + ".xml")
+        # Filenames in GRASPA are something like YcbObjectName_grasp.xml
+
+        name_graspa_savefile = "Ycb" + "".join([string.capitalize() for string in self._object_name.split('_')])
+        filename = os.path.join(os.path.abspath(self._savepath), name_graspa_savefile, "_grasp.xml")
 
         current_grasp_idx = 0
         tree = None
@@ -207,17 +210,17 @@ class GRASPAResult(object):
             visu_field = ET.SubElement(manip_object_field, 'Visualization')
             visu_filename_field = ET.SubElement(visu_field, 'File')
             visu_filename_field.set('type', 'inventor')
-            visu_filename_field.text = os.path.join('../../../GRASPA-benchmark/data/objects/YCB', self._object_name, 'nontextured.stl')
+            visu_filename_field.text = os.path.join('data/objects/YCB', self._object_name, 'nontextured.stl')
 
             collision_field = ET.SubElement(manip_object_field, 'CollisionModel')
             collision_filename_field = ET.SubElement(collision_field, 'File')
             collision_filename_field.set('type', 'inventor')
-            collision_filename_field.text = os.path.join('../../../GRASPA-benchmark/data/objects/YCB', self._object_name, 'nontextured.stl')
+            collision_filename_field.text = os.path.join('data/objects/YCB', self._object_name, 'nontextured.stl')
 
             graspset_field = ET.SubElement(manip_object_field, 'GraspSet')
             graspset_field.set('name', 'Benchmark_Layout_X')
             graspset_field.set('RobotType', 'Panda')
-            graspset_field.set('EndEffector', 'panda_hand')
+            graspset_field.set('EndEffector', 'Panda Hand')
 
             graspable_field = ET.SubElement(grasp_data, 'Graspable')
             graspable_field.set('quality', str(1))
@@ -241,12 +244,17 @@ class GRASPAResult(object):
         row3 = ET.SubElement(matrix, 'row3')
         row4 = ET.SubElement(matrix, 'row4')
 
-        # Multiplication for 1K because Simox uses millimiters as length units...
+        # Multiplication for 1K only in column 3 because Simox uses millimiters as length units...
 
         for col_idx in range(4):
-            row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx] * 1000.0))
-            row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx] * 1000.0))
-            row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx] * 1000.0))
+            if col_idx == 3:
+                row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx] * 1000.0))
+                row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx] * 1000.0))
+                row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx] * 1000.0))
+            else:
+                row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx]))
+                row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx]))
+                row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx]))
             row4.set('c'+str(col_idx+1), str(grasp_T_board[3,col_idx]))
 
         grasped_field = grasp_data.find('Grasped')
