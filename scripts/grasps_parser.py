@@ -1,3 +1,9 @@
+#!/usr/bin/env python
+
+# This script is useful to parse grasps from a predetermined path and visualize results
+# in a simplified way
+# Was used to quickly report grasp results after the GRASPA experiments on the Franka robot
+
 import xml.etree.ElementTree as et
 import os
 import argparse
