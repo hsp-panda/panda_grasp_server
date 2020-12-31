@@ -64,6 +64,7 @@
   <depend>actionlib_msgs</depend>
   <depend>panda_moveit_config</depend>
   <depend>moveit_simple_controller_manager</depend>
+  <depend>pyquaternion</depend>
 
   <!-- <build_depend>geometry_msgs</build_depend>
   <build_depend>std_msgs</build_depend>
