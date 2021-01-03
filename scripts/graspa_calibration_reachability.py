@@ -4,6 +4,8 @@
 # and read the reached poses either from the robot itself or an aruco detection module
 # The saved data has to adhere to the GRASPA savefile fomat.
 
+# This code is absolute trash, to be used hopefully only once
+
 
 import rospy
 import tf
@@ -12,23 +14,181 @@ from geometry_msgs.msg import Pose, PoseStamped
 
 from panda_ros_common.msg import PandaState
 from panda_ros_common.srv import PandaMove, PandaHome, PandaGetState
+from aruco_board_detect.msg import MarkerList
 
 import pyquaternion as pq
 import numpy as np
 import sys
+from threading import Lock
+from xml.etree import ElementTree as ET
+from xml.dom import minidom
 
 tcp_pose = None
+tcp_pose_lock = Lock()
 
 BOARD_FRAME_NAME = "graspa_board"
 ROOT_FRAME_NAME = "panda_link0"
 CAMERA_FRAME_NAME = "camera_link"
 
-def get_tcp_pose(markers):
+def get_tcp_pose(markers_msg):
 
     # compute pose of the TCP according to which marker is found
     # if none is found, tcp_pose = none
+    # if more than one is found, choose a random one
+    # look for markers 42, 43, 44
 
-    raise NotImplementedError
+    tcp_marker_offset = 0.03
+
+    global tcp_pose_lock
+    tcp_pose_lock.acquire()
+
+    global tcp_pose
+    tcp_pose = None
+
+    # acquire list of detected ids
+
+    marker_ids_list = markers_msg.marker_ids
+
+    # acquire list of marker poses, one for each id
+
+    marker_pose_list = markers_msg.marker_poses
+
+    # if marker 42, 43 or 44 is present:
+
+    if any(desired_tag in marker_ids_list for desired_tag in [42, 43, 44]):
+
+        if 43 in marker_ids_list:
+
+            marker_pose = marker_pose_list[marker_ids_list.index(43)]
+            # marker_pose = PoseStamped()
+
+            marker_pos = np.array([marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z])
+
+            marker_quat = pq.Quaternion(marker_pose.pose.orientation.w, marker_pose.pose.orientation.x, marker_pose.pose.orientation.y, marker_pose.pose.orientation.z)
+
+            # Translate along marker z axis to get to the TCP frame origin
+
+            marker_z_axis = marker_quat.rotation_matrix[:,2]
+            tcp_pos = marker_pos - tcp_marker_offset * marker_z_axis
+
+            # Obtain the TCP frame by rotating the marker frame
+
+            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=0)
+
+            # Construct the pose object
+            tcp_pose = PoseStamped()
+            tcp_pose.header.frame_id = markers_msg.header.frame_id
+            tcp_pose.header.stamp = rospy.Time.now()
+            tcp_pose.pose.position.x = tcp_pos[0]
+            tcp_pose.pose.position.y = tcp_pos[1]
+            tcp_pose.pose.position.z = tcp_pos[2]
+            tcp_pose.pose.orientation.w = tcp_quat.w
+            tcp_pose.pose.orientation.x = tcp_quat.x
+            tcp_pose.pose.orientation.y = tcp_quat.y
+            tcp_pose.pose.orientation.z = tcp_quat.z
+
+        elif 42 in marker_ids_list:
+
+            marker_pose = marker_pose_list[marker_ids_list.index(43)]
+            # marker_pose = PoseStamped()
+
+            marker_pos = np.array([marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z])
+
+            marker_quat = pq.Quaternion(marker_pose.pose.orientation.w, marker_pose.pose.orientation.x, marker_pose.pose.orientation.y, marker_pose.pose.orientation.z)
+
+            # Translate along marker z axis to get to the TCP frame origin
+
+            marker_z_axis = marker_quat.rotation_matrix[:,2]
+            tcp_pos = marker_pos - tcp_marker_offset * marker_z_axis
+
+            # Obtain the TCP frame by rotating the marker frame
+
+            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=-90)
+
+            # Construct the pose object
+            tcp_pose = PoseStamped()
+            tcp_pose.header.frame_id = markers_msg.header.frame_id
+            tcp_pose.header.stamp = rospy.Time.now()
+            tcp_pose.pose.position.x = tcp_pos[0]
+            tcp_pose.pose.position.y = tcp_pos[1]
+            tcp_pose.pose.position.z = tcp_pos[2]
+            tcp_pose.pose.orientation.w = tcp_quat.w
+            tcp_pose.pose.orientation.x = tcp_quat.x
+            tcp_pose.pose.orientation.y = tcp_quat.y
+            tcp_pose.pose.orientation.z = tcp_quat.z
+
+        elif 44 in marker_ids_list:
+
+            marker_pose = marker_pose_list[marker_ids_list.index(43)]
+            # marker_pose = PoseStamped()
+
+            marker_pos = np.array([marker_pose.pose.position.x, marker_pose.pose.position.y, marker_pose.pose.position.z])
+
+            marker_quat = pq.Quaternion(marker_pose.pose.orientation.w, marker_pose.pose.orientation.x, marker_pose.pose.orientation.y, marker_pose.pose.orientation.z)
+
+            # Translate along marker z axis to get to the TCP frame origin
+
+            marker_z_axis = marker_quat.rotation_matrix[:,2]
+            tcp_pos = marker_pos - tcp_marker_offset * marker_z_axis
+
+            # Obtain the TCP frame by rotating the marker frame
+
+            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=90)
+
+            # Construct the pose object
+            tcp_pose = PoseStamped()
+            tcp_pose.header.frame_id = markers_msg.header.frame_id
+            tcp_pose.header.stamp = rospy.Time.now()
+            tcp_pose.pose.position.x = tcp_pos[0]
+            tcp_pose.pose.position.y = tcp_pos[1]
+            tcp_pose.pose.position.z = tcp_pos[2]
+            tcp_pose.pose.orientation.w = tcp_quat.w
+            tcp_pose.pose.orientation.x = tcp_quat.x
+            tcp_pose.pose.orientation.y = tcp_quat.y
+            tcp_pose.pose.orientation.z = tcp_quat.z
+
+    tcp_pose_lock.release()
+
+def add_outcome(stamped_pose, parent, frame_name):
+
+    pose_position = np.array([stamped_pose.pose.position.x, stamped_pose.pose.position.y, stamped_pose.pose.position.z])
+    pose_rotation = pq.Quaternion([stamped_pose.pose.orientation.w,
+                                    stamped_pose.pose.orientation.x,
+                                    stamped_pose.pose.orientation.y,
+                                    stamped_pose.pose.orientation.z,]).rotation_matrix
+
+    manip_object_field = ET.SubElement(parent, 'ManipulationObject')
+    manip_object_field.set('name', frame_name)
+
+    file_field = ET.SubElement(manip_object_field, 'File')
+    file_field.text('objects/frame.xml')
+
+    global_pose_field = ET.SubElement(manip_object_field, 'GlobalPose')
+
+    transform_field = ET.SubElement(global_pose_field, 'Transform')
+
+    matrix = ET.SubElement(transform_field, 'Matrix4x4')
+    row1 = ET.SubElement(matrix, 'row1')
+    row2 = ET.SubElement(matrix, 'row2')
+    row3 = ET.SubElement(matrix, 'row3')
+    row4 = ET.SubElement(matrix, 'row4')
+
+    for col_idx in range(4):
+        if col_idx == 3:
+            row1.set('c'+str(col_idx+1), str(pose_position[0] * 1000.0))
+            row2.set('c'+str(col_idx+1), str(pose_position[1] * 1000.0))
+            row3.set('c'+str(col_idx+1), str(pose_position[2] * 1000.0))
+            row3.set('c'+str(col_idx+1), str(1))
+        else:
+            row1.set('c'+str(col_idx+1), str(pose_rotation[0,col_idx]))
+            row2.set('c'+str(col_idx+1), str(pose_rotation[1,col_idx]))
+            row3.set('c'+str(col_idx+1), str(pose_rotation[2,col_idx]))
+            row4.set('c'+str(col_idx+1), str(0))
+
+    # Not sure if I should return the parent or not
+
+
+
 
 if __name__ == "__main__":
 
@@ -38,6 +198,9 @@ if __name__ == "__main__":
 
     rospy.wait_for_service('panda_grasp_server/panda_move_pose')
     move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_pose', PandaMove)
+    get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
+
+    markers_sub = rospy.Subscriber('aruco_board_detect/marker_data', )
 
     # Define 3 sets of poses that will be used for both reachability and calibration
     # These target poses are defined wrt the board reference frame
@@ -81,6 +244,14 @@ if __name__ == "__main__":
 
     for set_rotation in rotation_per_set:
 
+        # For each rotation of the eef, build a different xml
+
+        reachability_scene_root = ET.Element('Scene')
+        reachability_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation))))
+
+        calibration_scene_root = ET.Element('Scene')
+        calibration_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation))))
+
         # Iterate over x and y to obtain poses
 
         for pose_idx_x in range(positions_grid.shape(0)):
@@ -115,6 +286,7 @@ if __name__ == "__main__":
                         continue
 
                 # Go to the pose
+                # In this phase, it is important that the robot moves even if the trajectory is not 100% viable
 
                 rospy.INFO("Moving to {}".format(pose_name))
                 raw_input("Press any key to move")
@@ -123,11 +295,47 @@ if __name__ == "__main__":
 
                 # If move is successful, wait a bit and read eef pose from the grasp server
 
-                # Read marker list and estimate eef pose from vision
+                if move_success:
 
-                # Save pose in xml tree
+                    rospy.sleep(rospy.Duration(2))
+
+                    rospy.loginfo("Retrieving TCP pose from the robot...")
+
+                    eef_pose_direct_kin = get_robot_state().eef_state
+
+                    # Obtain the pose wrt the GRASPA board ref frame
+
+                    reachability_pose = tf_listener.transformPose(BOARD_FRAME_NAME, eef_pose_direct_kin)
+
+                    # Read marker list and estimate eef pose from vision
+
+                    rospy.loginfo("Retrieving TCP pose from the vision system...")
+
+                    while tcp_pose is None:
+
+                        rospy.sleep(rospy.Duration(1))
+
+                    # tcp_pose is supposed a PoseStamped
+
+                    visual_pose = tf_listener.transformPose(BOARD_FRAME_NAME, tcp_pose)
+
+                    # Save pose in xml tree
+
+                    add_outcome(reachability_pose, reachability_scene_root, pose_name)
+                    add_outcome(visual_pose, calibration_scene_root, pose_name)
 
         # Save xml
 
-    # gubai
+        domstring = minidom.parseString(ET.tostring(reachability_scene_root))
+        filename = "reached_poses{}".format(format(int(rotation_per_set.index(set_rotation))))
+
+        with open(filename, "w") as handle:
+            handle.write(domstring.toprettyxml())
+
+        domstring = minidom.parseString(ET.tostring(calibration_scene_root))
+        filename = "cam_calibration_test_output{}".format(format(int(rotation_per_set.index(set_rotation))))
+
+        with open(filename, "w") as handle:
+            handle.write(domstring.toprettyxml())
+
 
