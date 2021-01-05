@@ -13,7 +13,7 @@ import tf.transformations
 from geometry_msgs.msg import Pose, PoseStamped
 
 from panda_ros_common.msg import PandaState
-from panda_ros_common.srv import PandaMove, PandaMoveRequest, PandaHome, PandaHomeRequest, PandaGetState
+from panda_ros_common.srv import PandaMove, PandaMoveRequest, PandaHome, PandaHomeRequest, PandaGetState, PandaMoveWaypoints, PandaMoveWaypointsRequest
 from aruco_board_detect.msg import MarkerList
 
 import pyquaternion as pq
@@ -93,7 +93,7 @@ def get_tcp_pose(markers_msg):
 
         elif 42 in marker_ids_list:
 
-            marker_pose = marker_pose_list[marker_ids_list.index(43)]
+            marker_pose = marker_pose_list[marker_ids_list.index(42)]
             # marker_pose = PoseStamped()
 
             marker_pos = np.array([marker_pose.position.x, marker_pose.position.y, marker_pose.position.z])
@@ -107,7 +107,7 @@ def get_tcp_pose(markers_msg):
 
             # Obtain the TCP frame by rotating the marker frame
 
-            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=-90)
+            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=90)
 
             # Construct the pose object
             tcp_pose = PoseStamped()
@@ -123,7 +123,7 @@ def get_tcp_pose(markers_msg):
 
         elif 44 in marker_ids_list:
 
-            marker_pose = marker_pose_list[marker_ids_list.index(43)]
+            marker_pose = marker_pose_list[marker_ids_list.index(44)]
             # marker_pose = PoseStamped()
 
             marker_pos = np.array([marker_pose.position.x, marker_pose.position.y, marker_pose.position.z])
@@ -137,7 +137,7 @@ def get_tcp_pose(markers_msg):
 
             # Obtain the TCP frame by rotating the marker frame
 
-            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=90)
+            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=-90)
 
             # Construct the pose object
             tcp_pose = PoseStamped()
@@ -201,7 +201,7 @@ def add_outcome(stamped_pose, parent, frame_name):
             row1.set('c'+str(col_idx+1), str(pose_position[0] * 1000.0))
             row2.set('c'+str(col_idx+1), str(pose_position[1] * 1000.0))
             row3.set('c'+str(col_idx+1), str(pose_position[2] * 1000.0))
-            row3.set('c'+str(col_idx+1), str(1))
+            row4.set('c'+str(col_idx+1), str(1))
         else:
             row1.set('c'+str(col_idx+1), str(pose_rotation[0,col_idx]))
             row2.set('c'+str(col_idx+1), str(pose_rotation[1,col_idx]))
@@ -221,7 +221,7 @@ if __name__ == "__main__":
     tf_broadcaster = tf.TransformBroadcaster()
 
     rospy.wait_for_service('panda_grasp_server/panda_move_pose')
-    move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_pose', PandaMove)
+    move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_wp', PandaMoveWaypoints)
     get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
 
     markers_sub = rospy.Subscriber('aruco_board_detector/markers_data', MarkerList, get_tcp_pose)
@@ -271,10 +271,10 @@ if __name__ == "__main__":
         # For each rotation of the eef, build a different xml
 
         reachability_scene_root = ET.Element('Scene')
-        reachability_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation))))
+        reachability_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation)+1)))
 
         calibration_scene_root = ET.Element('Scene')
-        calibration_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation))))
+        calibration_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation)+1)))
 
         # Iterate over x and y to obtain poses
 
@@ -316,7 +316,11 @@ if __name__ == "__main__":
                 rospy.loginfo("Moving to {}".format(pose_name))
                 raw_input("Press any key to move")
                 move_to_pose.wait_for_service()
-                move_success = move_to_pose(pose_root).success
+                # move_success = move_to_pose(pose_root).success
+                target = PandaMoveWaypointsRequest()
+                target.pose_waypoints.header = pose_root.header
+                target.pose_waypoints.poses = [pose_root.pose]
+                move_success = move_to_pose(target).success
 
                 # If move is successful, wait a bit and read eef pose from the grasp server
 
@@ -333,7 +337,7 @@ if __name__ == "__main__":
                     reachability_pose = PoseStamped()
                     now = rospy.Time.now()
                     success = False
-                    while not success:
+                    while not success and not rospy.is_shutdown():
                         try:
                             tf_listener.waitForTransform(ROOT_FRAME_NAME, CAMERA_FRAME_NAME, eef_pose_direct_kin.header.stamp , rospy.Duration(3.0))
                             reachability_pose = tf_listener.transformPose(BOARD_FRAME_NAME, eef_pose_direct_kin)
@@ -347,7 +351,7 @@ if __name__ == "__main__":
                     rospy.loginfo("Retrieving TCP pose from the vision system...")
 
                     success = False
-                    while not success:
+                    while not success and not rospy.is_shutdown():
                         tcp_pose_lock.acquire()
                         if tcp_pose:
                             success = True
