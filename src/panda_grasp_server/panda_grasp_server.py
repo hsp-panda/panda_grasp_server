@@ -8,6 +8,7 @@ import rospy
 import geometry_msgs
 import moveit_commander
 import moveit_msgs.msg
+import std_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
 from threading import Lock
@@ -17,7 +18,6 @@ import tf
 import rospkg
 
 from panda_ros_common.msg import PandaState
-
 from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
                                     UserCmd,
                                     PandaMove, PandaMoveRequest, PandaMoveResponse,
@@ -561,22 +561,22 @@ class PandaActionServer(object):
                                         velocity_scaling_factor=self._max_velocity_scaling_factor,
                                         acceleration_scaling_factor=self._max_acceleration_scaling_factor)
 
-        if fraction > 0.99:
-            msg = "Moving robot arm. Planned " + str(fraction) + " of the trajectory"
+        if fraction > 0.5:
+            msg = std_msgs.msg.String("Moving robot arm. Planned " + str(fraction) + " of the trajectory")
             rospy.loginfo(msg)
             self._move_group.execute(plan, wait=True)
             self._move_group.stop()
             self._move_group.clear_pose_targets()
-            return PandaMoveWaypointResponse(
+            return PandaMoveWaypointsResponse(
                 success=True,
                 message=msg
             )
         else:
-            msg = "Plan failed. Planned " + str(fraction*100) + "% of the trajectory"
+            msg = std_msgs.msg.String("Plan failed. Planned " + str(fraction*100) + "% of the trajectory")
             rospy.loginfo(msg)
             self._move_group.stop()
             self._move_group.clear_pose_targets()
-            return PandaMoveWaypointResponse(
+            return PandaMoveWaypointsResponse(
                 success=False,
                 message=msg
             )
