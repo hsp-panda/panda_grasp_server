@@ -13,7 +13,11 @@ import tf.transformations
 from geometry_msgs.msg import Pose, PoseStamped
 
 from panda_ros_common.msg import PandaState
-from panda_ros_common.srv import PandaMove, PandaMoveRequest, PandaHome, PandaHomeRequest, PandaGetState, PandaMoveWaypoints, PandaMoveWaypointsRequest
+from panda_ros_common.srv import PandaMove, PandaMoveRequest
+from panda_ros_common.srv import PandaHome, PandaHomeRequest
+from panda_ros_common.srv import PandaGetState
+from panda_ros_common.srv import PandaMoveWaypoints, PandaMoveWaypointsRequest
+from panda_ros_common.srv import PandaSetHome, PandaSetHomeRequest
 from aruco_board_detect.msg import MarkerList
 
 import pyquaternion as pq
@@ -208,11 +212,6 @@ def add_outcome(stamped_pose, parent, frame_name):
             row3.set('c'+str(col_idx+1), str(pose_rotation[2,col_idx]))
             row4.set('c'+str(col_idx+1), str(0))
 
-    # Not sure if I should return the parent or not
-
-
-
-
 if __name__ == "__main__":
 
     rospy.init_node("graspa_reachability_calibration")
@@ -223,6 +222,9 @@ if __name__ == "__main__":
     rospy.wait_for_service('panda_grasp_server/panda_move_pose')
     move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_wp', PandaMoveWaypoints)
     get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
+
+    rospy.wait_for_service('panda_grasp_server/panda_home')
+    move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
 
     markers_sub = rospy.Subscriber('aruco_board_detector/markers_data', MarkerList, get_tcp_pose)
 
@@ -252,19 +254,22 @@ if __name__ == "__main__":
     z_grid = 0.15 * np.ones(x_grid.shape)
     positions_grid = np.dstack((x_grid, y_grid, z_grid))
 
-    # Go home
+    # Acquire initial pose (joint space)
 
-    # rospy.wait_for_service('panda_grasp_server/panda_home')
-    # try:
-    #     move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
-    #     req = PandaHomeRequest(use_joint_values=True)
-    #     move_success = move_home(req).success
-    #     if not move_success:
-    #         print("Unable to go home. Quitting.")
-    #         rospy.signal_shutdown()
-    #         sys.exit(1)
-    # except rospy.ServiceException as e:
-    #     print("Service call failed: %s"%e)
+    initial_pose_joints = get_robot_state().robot_state.joints_state
+    initial_pose_pose = get_robot_state().robot_state.eef_state
+
+    # Set this as home pose
+
+    rospy.wait_for_service('panda_grasp_server/panda_set_home_pose')
+    set_home_pose = rospy.ServiceProxy('panda_grasp_server/panda_set_home_pose', PandaSetHome)
+    req = PandaSetHomeRequest(home_pose=PoseStamped(),
+                              home_joints=initial_pose_joints,
+                              use_joints=True)
+
+    set_home_pose(req)
+
+    rospy.loginfo('Initial joint state recorded')
 
     for set_rotation in rotation_per_set:
 
@@ -281,7 +286,7 @@ if __name__ == "__main__":
         for pose_idx_x in range(positions_grid.shape[0]):
             for pose_idx_y in range(positions_grid.shape[1]):
 
-                pose_name = "Reachable_frame{}{}".format(pose_idx_y, pose_idx_x)
+                pose_name = "Reachable_frame{}{}".format(pose_idx_x, pose_idx_y)
 
                 # Create pose wrt graspa board frame
 
@@ -314,19 +319,23 @@ if __name__ == "__main__":
                 # In this phase, it is important that the robot moves even if the trajectory is not 100% viable
 
                 rospy.loginfo("Moving to {}".format(pose_name))
-                raw_input("Press any key to move")
+                # raw_input("Press any key to move")
+                # rospy.sleep(1)
                 move_to_pose.wait_for_service()
                 # move_success = move_to_pose(pose_root).success
                 target = PandaMoveWaypointsRequest()
                 target.pose_waypoints.header = pose_root.header
-                target.pose_waypoints.poses = [pose_root.pose]
+                if pose_idx_x==0 and pose_idx_y > 0:
+                    target.pose_waypoints.poses = [initial_pose_pose.pose, pose_root.pose]
+                else:
+                    target.pose_waypoints.poses = [pose_root.pose]
                 move_success = move_to_pose(target).success
 
                 # If move is successful, wait a bit and read eef pose from the grasp server
 
                 if move_success:
 
-                    rospy.sleep(rospy.Duration(2))
+                    rospy.sleep(rospy.Duration(0.5))
 
                     rospy.loginfo("Retrieving TCP pose from the robot...")
 
@@ -370,16 +379,22 @@ if __name__ == "__main__":
                     add_outcome(reachability_pose, reachability_scene_root, pose_name)
                     add_outcome(visual_pose, calibration_scene_root, pose_name)
 
+        # Move the robot back to initial state
+
+        req = PandaHomeRequest(use_joint_values=True, home_gripper=False)
+        rospy.wait_for_service('panda_grasp_server/panda_home')
+        move_home(req)
+
         # Save xml
 
         domstring = minidom.parseString(ET.tostring(reachability_scene_root))
-        filename = "reached_poses{}".format(format(int(rotation_per_set.index(set_rotation))))
+        filename = "reached_poses{}.xml".format(format(int(rotation_per_set.index(set_rotation))))
 
         with open(filename, "w") as handle:
             handle.write(domstring.toprettyxml())
 
         domstring = minidom.parseString(ET.tostring(calibration_scene_root))
-        filename = "cam_calibration_test_output{}".format(format(int(rotation_per_set.index(set_rotation))))
+        filename = "cam_calibration_test_output{}.xml".format(format(int(rotation_per_set.index(set_rotation))))
 
         with open(filename, "w") as handle:
             handle.write(domstring.toprettyxml())
