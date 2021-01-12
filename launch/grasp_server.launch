@@ -10,11 +10,14 @@
 
     <arg name="enable_force_grasp"                      default="false" />
 
+    <arg name="moveit_use_bio_ik"                       default="false" />
+
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch">
         <arg name="load_gripper"                    value="$(arg load_gripper)" />
         <arg name="robot_ip"                        value="$(arg robot_ip)" />
         <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
+        <arg name="moveit_use_bio_ik"               value="$(arg moveit_use_bio_ik)" />
     </include>
 
     <!-- Start realsense, if necessary -->

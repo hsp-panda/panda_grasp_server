@@ -2,11 +2,13 @@
 
     <arg name="table_height"                            default="0.0" />
     <arg name="rviz_config"                             default="rviz.rviz" />
+    <arg name="moveit_use_bio_ik"                       default="false" />
     <!-- <arg name="start_realsense"                         default="true" /> -->
 
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz_sim.launch">
         <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
+        <arg name="moveit_use_bio_ik"               value="$(arg moveit_use_bio_ik)" />
     </include>
 
     <node name="joint_state_desired_publisher" pkg="topic_tools" type="relay" args="joint_states joint_states_desired" />
