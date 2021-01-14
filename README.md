@@ -27,6 +27,7 @@ There are additional arguments that you can use:
 - `robot_ip:=<whatever_ip>` if the robot IP is not the default one
 - `rviz_config:=<custom_rviz_config_path>` if you want a custom rviz file
 - `load_gripper:=false` if you don't need the gripper
+- `moveit_use_bio_ik:=true` in order to use the [BioIK](https://github.com/TAMS-Group/bio_ik) inverse kinematic solver
 
 Expected output: (you may or may not have the ARUCO board detection set up)
 ![IMAGE](assets/home.png)
