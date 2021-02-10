@@ -50,7 +50,7 @@ def fibonacci_trajectory(samples):
 
 
 
-def explore_and_save(workdir, rad, theta_steps=24, phi_steps=3):
+def explore_and_save(workdir, rad, theta_steps=24, phi_steps=3, feasibles=None):
     # Define ranges of theta and phi
     # min_theta = np.pi / 2 + np.pi / 6
     min_theta = np.pi * 0 # + np.pi / 6
@@ -86,7 +86,7 @@ def explore_and_save(workdir, rad, theta_steps=24, phi_steps=3):
     phi_space = np.reshape(phi_space, (1, phi_space.size))
 
     # Define sphere center
-    center = [0.45, 0.0, 0.07]
+    center = [0.45, 0.0, 0.12]
 
     # Obtain pose center points
     x = rad*np.cos(theta_space)*np.cos(phi_space) + center[0]
@@ -122,7 +122,9 @@ def explore_and_save(workdir, rad, theta_steps=24, phi_steps=3):
     # Obtain poses as position + quaternion
     poses = []
     poses_reached = 0
-    feasibles = np.zeros((x_ax.shape[0]),dtype=np.bool)
+
+    if feasibles is None:
+        feasibles = np.zeros((x_ax.shape[0]),dtype=np.bool)
 
    
 
@@ -174,28 +176,29 @@ def explore_and_save(workdir, rad, theta_steps=24, phi_steps=3):
                 print("Service call failed: %s"%e)
 
         rospy.wait_for_service('panda_grasp_server/panda_move_pose')
-        try:
-            move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_pose', PandaMove)
-            move_success = move_to_pose(pose).success
-            if move_success:
-                feasibles[idx] = True
-                poses_reached+=1
-                get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
-                robot_state = get_robot_state().robot_state
-                eef_pose = robot_state.eef_state.pose
-                print(eef_pose)
-                # we need the pose in axis-angle representation
-                eef_orient = Quaternion(eef_pose.orientation.w, eef_pose.orientation.x, eef_pose.orientation.y, eef_pose.orientation.z)
-                eef_orient_rotvec = eef_orient.get_axis() * eef_orient.angle
-                # pose_euler = euler_from_quaternion([eef_pose.orientation.x, eef_pose.orientation.x, eef_pose.orientation.z, eef_pose.orientation.w], axes=)
-                cv_image = bridge.imgmsg_to_cv2(camera_image, desired_encoding='passthrough')
-                cv_image_rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-                cv2.imwrite(wdir_rad + '/image_%d.png' % poses_reached, cv_image_rgb)
+        if feasibles[idx]:
+            try:
+                move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_pose', PandaMove)
+                move_success = move_to_pose(pose).success
+                if move_success:
+                    feasibles[idx] = True
+                    poses_reached+=1
+                    get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
+                    robot_state = get_robot_state().robot_state
+                    eef_pose = robot_state.eef_state.pose
+                    print(eef_pose)
+                    # we need the pose in axis-angle representation
+                    eef_orient = Quaternion(eef_pose.orientation.w, eef_pose.orientation.x, eef_pose.orientation.y, eef_pose.orientation.z)
+                    eef_orient_rotvec = eef_orient.get_axis() * eef_orient.angle
+                    # pose_euler = euler_from_quaternion([eef_pose.orientation.x, eef_pose.orientation.x, eef_pose.orientation.z, eef_pose.orientation.w], axes=)
+                    cv_image = bridge.imgmsg_to_cv2(camera_image, desired_encoding='passthrough')
+                    cv_image_rgb = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+                    cv2.imwrite(wdir_rad + '/image_%d.png' % poses_reached, cv_image_rgb)
 
-            else:
-                print("Pose unreachable. Proceeding with next pose")
-        except rospy.ServiceException as e:
-           print("Service call failed: %s"%e)
+                else:
+                    print("Pose unreachable. Proceeding with next pose")
+            except rospy.ServiceException as e:
+               print("Service call failed: %s"%e)
 
     np.save(wdir_rad + '/' + 'feasibles.npy' , feasibles)
     np.save(wdir_rad + '/' + 'center.npy', np.array(center))
@@ -212,11 +215,16 @@ if __name__ == '__main__':
     if len(sys.argv) > 1:
         workdir = sys.argv[1]
 
+    feasibles = None
+    if len(sys.argv) > 2:
+        feasibles_path = sys.argv[2]
+        feasibles = np.load(feasibles_path)
+
     if not os.path.exists(workdir):
         os.mkdir(workdir)
 
     for rad in radius_list:
-        explore_and_save(workdir, rad, theta_steps=128)
+        explore_and_save(workdir, rad, theta_steps=128, feasibles=feasibles)
  
     rospy.wait_for_service('panda_grasp_server/panda_home')
     try:
