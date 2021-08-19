@@ -93,6 +93,9 @@ class NodeConfig(object):
         # Enable force-controlled grasping
         self._enable_force_grasp = rospy.get_param("~ops_params/enable_force_grasp", False)
 
+        # Enable GRASPA stability motion after grasp
+        self._enable_graspa_stab_motion = rospy.get_param("~ops_params/enable_graspa_stab_motion", False)
+
         # Save grasp path
         rospack = rospkg.RosPack()
         self._grasp_save_path = rospy.get_param("~ops_params/grasp_save_path", os.path.join(rospack.get_path('panda_grasp_server'), 'dumped_grasps'))
@@ -144,6 +147,9 @@ class PandaActionServer(object):
 
         # Set the force grasp flag
         self._enable_force_grasp = config._enable_force_grasp
+
+        # Set the stability motion enable flag
+        self._enable_graspa_stab_motion = config._enable_graspa_stab_motion
 
         # Set path to save grasps to
         self._grasp_save_path = config._grasp_save_path
@@ -890,7 +896,8 @@ class PandaActionServer(object):
         rospy.loginfo("Grasp success? " + str(grasp_success))
 
         # Check stability
-        self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
+        if self._enable_graspa_stab_motion:
+            self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
 
         # Move object out of workspace
         next_pose = lift_pose
