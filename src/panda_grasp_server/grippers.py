@@ -5,10 +5,15 @@ from __future__ import print_function
 from abc import ABCMeta, abstractproperty, abstractmethod
 import rospy
 import actionlib
+
+# Actions for Franka Hand
 from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
 from franka_gripper.msg import MoveAction, MoveActionGoal, MoveActionResult
 from franka_gripper.msg import StopAction, StopActionGoal, StopActionResult
 from franka_gripper.msg import HomingAction, HomingActionGoal, HomingActionResult
+
+# Actions for Robotiq 2F Gripper
+from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperAction, CommandRobotiqGripperActionGoal, CommandRobotiqGripperActionResult, CommandRobotiqGripperActionFeedback
 
 class GripperInterface(object):
     """ General interface for a Gripper class. Assumes a gripper has a maximum
@@ -116,9 +121,9 @@ class FrankaHandGripper(GripperInterface):
 
     # Gripper parameters. These are not supposed to be changable at runtime
     _gripper_name = "Franka Hand"
-    _min_width = 0.0                        # m/s
+    _min_width = 0.0                        # m
     _max_width = 0.08
-    _min_speed = 0.0
+    _min_speed = 0.0                        # m/s
     _max_speed = 0.1
     _min_force = 10                         # N
     _max_force = 70
@@ -219,6 +224,138 @@ class FrankaHandGripper(GripperInterface):
 
     def get_gripper_status(self):
         raise NotImplementedError
+
+
+class Robotiq2FGripper(GripperInterface):
+    """Wrapper class for the Robotiq 2F Gripper class.
+
+    Manages the gripper via the action client implemented in https://github.com/hsp-panda/robotiq.
+    An implementation that directly interfaces with the serial interface can be used
+    via the Robotiq2FingerGripperDriver class in robotiq_2f_gripper_control.robotiq_2f_gripper_driver
+    but it needs to be run on the same machine the serial is hooked up to
+
+    Implements the GripperInterface.
+    """
+
+    # Gripper parameters. These are not supposed to be changable at runtime
+    # TODO config parameter for 2F140 vs 2F85?
+    _gripper_name = "Robotiq 2F"
+    _min_width = 0.0                        # m
+    _max_width = 0.085
+    _min_speed = 0.013                      # m/s
+    _max_speed = 0.1
+    _min_force = 5.0                        # percentage of force (0-100)
+    _max_force = 100.0
+
+    def __init__(self, gripper_action_namespace = ""):
+
+        # The gripper works by interfacing with a single action, with different
+        # commands
+        # TODO check if this is the right default namespace
+        server_action_name = gripper_action_namespace + "/command_robotiq_action"
+
+        self._epsilon = 0.002
+
+        # Configure the gripper action client. Raise an exception if something
+        # goes wrong
+        self._command_feedback = CommandRobotiqGripperActionFeedback()
+        self._gripper_action_client = actionlib.SimpleActionClient(server_action_name, CommandRobotiqGripperAction)
+        if self._gripper_action_client.wait_for_server(rospy.Duration(5)):
+            rospy.loginfo("Robotiq 2F Gripper action client connected successfully")
+        else:
+            raise rospy.exceptions.ROSException("Unable to connect to Robotiq 2F Gripper action server!")
+
+    def _handle_gripper_command_feedback(self, feedback):
+
+        # Store the last feedback
+        self._command_feedback = feedback
+
+    def command_gripper(self, target_width, target_speed, target_force, wait):
+
+        # Basically every movement of the 2F will use this function, so we implement
+        # this first
+
+        goal = CommandRobotiqGripperActionGoal()
+        goal_time = rospy.Time.now()
+        goal.header.stamp = goal_time
+        goal.goal_id.stamp = goal_time
+        goal.goal.position = self.clip_pos(target_width)
+        goal.goal.speed = self.clip_speed(target_speed)
+        goal.goal.force = self.clip_force(target_force)
+
+        import ipdb; ipdb.set_trace()
+
+        self._gripper_action_client.send_goal(goal.goal, feedback_cb=self._handle_gripper_command_feedback)
+
+        if wait:
+            self._gripper_action_client.wait_for_result(rospy.Duration(20))
+            return self._gripper_action_client.get_result()
+        else:
+            # If the caller is not interested in waiting for result,
+            # we return a feedback message
+            # TODO: this might not work as intended...
+            return self._command_feedback
+
+    def home_gripper(self, wait=True):
+
+        return self.open_gripper(self._max_speed, wait)
+
+    def move_fingers(self, target_width, target_speed=_min_speed, target_force=_min_force, wait=True):
+
+        # Call the command_gripper method and interpret the result according to
+        # wait or not wait
+        result = self.command_gripper(target_width, target_speed, target_force, wait)
+        if wait:
+            # return true if close enough, false otherwise
+            return (abs(result.position - result.requested_position) < self._epsilon)
+        else:
+            # return true if gripper is moving, false otherwise
+            return result.is_moving
+
+    def close_gripper(self, target_speed=_min_speed, target_force=_min_force, wait=True):
+
+        # Basic gripper movement. Will return True only if the gripper reaches
+        # minimum aperture without encountering resistance
+        return self.move_fingers(self._min_width, target_speed, target_force, wait)
+
+    def open_gripper(self, target_speed=_max_speed, wait=True):
+
+        # Basic gripper movement. Will return True only if the gripper reaches
+        # maximum aperture without encountering resistance
+        return self.move_fingers(self._max_width, target_speed, target_force=self._min_force, wait=wait)
+
+    def stop_gripper(self, wait=True):
+
+        goal = CommandRobotiqGripperActionGoal()
+        goal_time = rospy.Time.now()
+        goal.header.stamp = goal_time
+        goal.goal_id.stamp = goal_time
+        goal.goal.stop = True
+
+        self._gripper_action_client.send_goal(goal.goal, feedback_cb=self._handle_gripper_command_feedback)
+
+        if wait:
+            self._gripper_action_client.wait_for_result()
+            return not self._gripper_action_client.get_result().is_moving
+        else:
+            return True
+
+    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True):
+
+        # Moves at specified width, using a capped force. With no arguments,
+        # closes the gripper and stops when some force is perceived.
+        result = self.command_gripper(target_width, target_speed, target_force, wait)
+
+        # Action is successful if an object is encountered along the movement,
+        # not if width is reached!
+        if wait:
+            return result.obj_detected
+        else:
+            return True
+
+    def get_gripper_status(self):
+        raise NotImplementedError
+
 
 
 
