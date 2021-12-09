@@ -78,6 +78,10 @@ class GripperInterface(object):
         pass
 
     @abstractmethod
+    def grasp_motion(self, target_width, target_speed, target_force, wait):
+        pass
+
+    @abstractmethod
     def get_gripper_status(self):
         pass
 
@@ -158,7 +162,7 @@ class FrankaHandGripper(GripperInterface):
 
         if wait:
             self._move_action_client.wait_for_result()
-            return self._move_action_client.get_result.success
+            return self._move_action_client.get_result().success
         else:
             return True
 
@@ -169,7 +173,7 @@ class FrankaHandGripper(GripperInterface):
                                  target_force=self._min_force,
                                  wait=wait)
 
-    def stop_gripper(self):
+    def stop_gripper(self, wait=True):
 
         goal = StopActionGoal()
         goal_time = rospy.Time.now()
@@ -180,7 +184,27 @@ class FrankaHandGripper(GripperInterface):
 
         if wait:
             self._stop_action_client.wait_for_result()
-            return self._stop_action_client.get_result.success
+            return self._stop_action_client.get_result().success
+        else:
+            return True
+
+    def grasp_motion(self, target_width, target_speed, target_force, wait=True):
+
+        goal = GraspActionGoal()
+        goal_time = rospy.Time.now()
+        goal.header.stamp = goal_time
+        goal.goal_id.stamp = goal_time
+        goal.goal.width = target_width
+        goal.goal.speed = target_speed
+        goal.goal.force = target_force
+        goal.goal.epsilon.inner = self._inner_epsilon
+        goal.goal.epsilon.outer = self._outer_epsilon
+
+        self._grasp_action_client.send_goal(goal)
+
+        if wait:
+            self._grasp_action_client.wait_for_result()
+            return self._grasp_action_client.get_result().success
         else:
             return True
 
