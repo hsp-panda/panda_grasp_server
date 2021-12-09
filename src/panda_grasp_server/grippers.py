@@ -58,23 +58,23 @@ class GripperInterface(object):
         pass
 
     @abstractmethod
-    def home_gripper(self):
+    def home_gripper(self, wait):
         pass
 
     @abstractmethod
-    def move_fingers(self, pos, speed, force):
+    def move_fingers(self, target_width, target_speed, target_force, wait):
         pass
 
     @abstractmethod
-    def close_gripper(self):
+    def close_gripper(self, target_speed, target_force, wait):
         pass
 
     @abstractmethod
-    def open_gripper(self):
+    def open_gripper(self, target_speed, wait):
         pass
 
     @abstractmethod
-    def stop_gripper(self):
+    def stop_gripper(self, wait):
         pass
 
     @abstractmethod
@@ -145,17 +145,49 @@ class FrankaHandGripper(GripperInterface):
             self._homing_action_client.send_goal(HomingAction())
             return True
 
-    def move_fingers(self, target_width, target_speed, target_force):
-        pass
+    def move_fingers(self, target_width, target_speed, target_force=0.0, wait=True):
 
-    def close_gripper(self, target_speed, target_force):
-        pass
+        goal = MoveActionGoal()
+        goal_time = rospy.Time.now()
+        goal.header.stamp = goal_time
+        goal.goal_id.stamp = goal_time
+        goal.goal.width = target_width
+        goal.goal.speed = target_speed
+
+        self._move_action_client.send_goal(goal)
+
+        if wait:
+            self._move_action_client.wait_for_result()
+            return self._move_action_client.get_result.success
+        else:
+            return True
+
+    def close_gripper(self, target_speed, target_force, wait=True):
+
+        return self.move_fingers(target_width=self._min_width,
+                                 target_speed=target_speed,
+                                 target_force=self._min_force,
+                                 wait=wait)
 
     def stop_gripper(self):
-        pass
+
+        goal = StopActionGoal()
+        goal_time = rospy.Time.now()
+        goal.header.stamp = goal_time
+        goal.goal_id.stamp = goal_time
+
+        self._stop_action_client.send_goal(goal)
+
+        if wait:
+            self._stop_action_client.wait_for_result()
+            return self._stop_action_client.get_result.success
+        else:
+            return True
 
     def get_gripper_status(self):
-        pass
+        raise NotImplementedError
+
+
 
 
 
