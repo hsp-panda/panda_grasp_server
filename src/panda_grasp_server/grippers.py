@@ -96,6 +96,15 @@ class GripperInterface(object):
     def is_force_in_bounds(self, force):
         return (force > self._min_force) and (force < self._max_force)
 
+    def clip_pos(self, pos):
+        return max(min(pos, self._max_width), self._min_width)
+
+    def clip_speed(self, speed):
+        return max(min(speed, self._max_speed), self._min_speed)
+
+    def clip_force(self, force):
+        return max(min(force, self._max_speed), self._min_force)
+
 
 class FrankaHandGripper(GripperInterface):
     """Wrapper class for the Franka Gripper class.
