@@ -166,7 +166,7 @@ class FrankaHandGripper(GripperInterface):
             self._homing_action_client.send_goal(HomingAction())
             return True
 
-    def move_fingers(self, target_width, target_speed, target_force=0.0, wait=True):
+    def move_fingers(self, target_width, target_speed=_min_speed, target_force=_min_force, wait=True):
 
         goal = MoveActionGoal()
         goal_time = rospy.Time.now()
@@ -183,7 +183,7 @@ class FrankaHandGripper(GripperInterface):
         else:
             return True
 
-    def close_gripper(self, target_speed, target_force, wait=True):
+    def close_gripper(self, target_speed=_min_speed, target_force=_min_force, wait=True):
 
         return self.move_fingers(target_width=self._min_width,
                                  target_speed=target_speed,
@@ -205,7 +205,7 @@ class FrankaHandGripper(GripperInterface):
         else:
             return True
 
-    def grasp_motion(self, target_width, target_speed, target_force, wait=True):
+    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True):
 
         goal = GraspActionGoal()
         goal_time = rospy.Time.now()
