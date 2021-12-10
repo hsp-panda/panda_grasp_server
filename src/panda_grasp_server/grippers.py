@@ -16,6 +16,9 @@ from franka_gripper.msg import HomingAction, HomingActionGoal, HomingActionResul
 from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperAction, CommandRobotiqGripperActionGoal, CommandRobotiqGripperActionResult, CommandRobotiqGripperActionFeedback
 # from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import Robotiq2FingerGripperDriver as Robotiq
 
+# Service from module_xela_gripper
+from module_xela_gripper.srv import Setpoint, SetpointRequest
+
 class GripperInterface(object):
     """ General interface for a Gripper class. Assumes a gripper has a maximum
     and minimum finger aperture, and requires some attributes and implementation of
@@ -110,7 +113,6 @@ class GripperInterface(object):
 
     def clip_force(self, force):
         return max(min(force, self._max_speed), self._min_force)
-
 
 class FrankaHandGripper(GripperInterface):
     """Wrapper class for the Franka Gripper class.
@@ -225,7 +227,6 @@ class FrankaHandGripper(GripperInterface):
 
     def get_gripper_status(self):
         raise NotImplementedError
-
 
 class Robotiq2FGripper(GripperInterface):
     """Wrapper class for the Robotiq 2F Gripper class.
@@ -357,8 +358,42 @@ class Robotiq2FGripper(GripperInterface):
     def get_gripper_status(self):
         raise NotImplementedError
 
+class Robotiq2FGripperForceControlled(Robotiq2FGripper):
+    """ Wrapper class for the Robotiq 2F Gripper class with an added force
+    control loop on top.
 
+    Manages the gripper via the action client implemented in https://github.com/hsp-panda/robotiq.
+    An implementation that directly interfaces with the serial interface can be used
+    via the Robotiq2FingerGripperDriver class in robotiq_2f_gripper_control.robotiq_2f_gripper_driver
+    but it needs to be run on the same machine the serial is hooked up to.
 
+    Implements the GripperInterface. Mirrors Robotiq2FGripper for the most part.
+    Relies on https://github.com/hsp-panda/xela-force-control for the actual force
+    control to be enabled.
+    """
+
+    def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = ""):
+
+        # Call the superclass
+        super().__init__(gripper_action_namespace)
+
+        # Add the setpoint service
+        setpoint_service_name = force_setpoint_service_namespace + "/setpoint"
+
+        # Set up the service proxy
+        rospy.wait_for_service(setpoint_service_name)
+        self._force_setpoint = rospy.ServiceProxy(setpoint_service_name, Setpoint)
+
+    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=1.0):
+
+        # Make the service call. This is blocking by definition, but returns
+        # right away
+        try:
+            self._force_setpoint(target_force, duration)
+            return True
+        except rospy.ServiceException as e:
+            print("Setpoint service call failed: %s"%e)
+            return False
 
 
 
