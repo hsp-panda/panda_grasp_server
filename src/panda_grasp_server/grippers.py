@@ -125,13 +125,13 @@ class FrankaHandGripper(GripperInterface):
     # Gripper parameters. These are not supposed to be changable at runtime
     _gripper_name = "Franka Hand"
     _min_width = 0.0                        # m
-    _max_width = 0.08
-    _min_speed = 0.0                        # m/s
+    _max_width = 0.09
+    _min_speed = 0.01                       # m/s
     _max_speed = 0.1
     _min_force = 10                         # N
     _max_force = 70
 
-    def _init__(self, gripper_action_namespace = "/franka_gripper"):
+    def __init__(self, gripper_action_namespace = "/franka_gripper"):
 
         # The gripper works by interfacing with different actions, which have
         # a common namespace
