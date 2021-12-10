@@ -14,6 +14,7 @@ from franka_gripper.msg import HomingAction, HomingActionGoal, HomingActionResul
 
 # Actions for Robotiq 2F Gripper
 from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperAction, CommandRobotiqGripperActionGoal, CommandRobotiqGripperActionResult, CommandRobotiqGripperActionFeedback
+# from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import Robotiq2FingerGripperDriver as Robotiq
 
 class GripperInterface(object):
     """ General interface for a Gripper class. Assumes a gripper has a maximum
@@ -283,8 +284,6 @@ class Robotiq2FGripper(GripperInterface):
         goal.goal.speed = self.clip_speed(target_speed)
         goal.goal.force = self.clip_force(target_force)
 
-        import ipdb; ipdb.set_trace()
-
         self._gripper_action_client.send_goal(goal.goal, feedback_cb=self._handle_gripper_command_feedback)
 
         if wait:
@@ -295,6 +294,8 @@ class Robotiq2FGripper(GripperInterface):
             # we return a feedback message
             # TODO: this might not work as intended...
             return self._command_feedback
+
+        # Robotiq.goto(self._gripper_action_client, self.clip_pos(target_width), self.clip_speed(target_speed), self.clip_force(target_force), wait)
 
     def home_gripper(self, wait=True):
 
