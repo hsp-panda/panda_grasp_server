@@ -190,6 +190,13 @@ class FrankaHandGripper(GripperInterface):
                                  target_force=self._min_force,
                                  wait=wait)
 
+    def open_gripper(self, target_speed=_max_speed, wait=True):
+
+        return self.move_fingers(target_width=self._max_width,
+                                 target_speed=target_speed,
+                                 target_force=self._min_force,
+                                 wait=wait)
+
     def stop_gripper(self, wait=True):
 
         goal = StopActionGoal()
@@ -394,13 +401,3 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
         except rospy.ServiceException as e:
             print("Setpoint service call failed: %s"%e)
             return False
-
-
-
-
-
-
-
-
-
-
