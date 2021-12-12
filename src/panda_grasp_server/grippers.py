@@ -148,7 +148,7 @@ class FrankaHandGripper(GripperInterface):
         self._homing_action_client = actionlib.SimpleActionClient(homing_action_name, HomingAction)
         self._move_action_client = actionlib.SimpleActionClient(move_action_name, MoveAction)
         self._grasp_action_client = actionlib.SimpleActionClient(grasp_action_name, GraspAction)
-        self._stop_action_client = actionlib.SimpleActionClient(stop_action_namespace)
+        self._stop_action_client = actionlib.SimpleActionClient(stop_action_namespace, StopAction)
         if self._homing_action_client.wait_for_server(rospy.Duration(5)) and self._move_action_client.wait_for_server(rospy.Duration(5)) and self._grasp_action_client.wait_for_server(rospy.Duration(5)) and self._stop_action_client.wait_for_server(rospy.Duration(5)):
             rospy.loginfo("Franka Gripper action clients connected successfully")
         else:
@@ -160,7 +160,7 @@ class FrankaHandGripper(GripperInterface):
         """
 
         if wait:
-            self._homing_action_client.send_goal_and_wait(HomingActionGoal())
+            self._homing_action_client.send_goal_and_wait(HomingActionGoal().goal)
             return self._homing_action_client.get_result().success
         else:
             self._homing_action_client.send_goal(HomingAction())
@@ -175,7 +175,7 @@ class FrankaHandGripper(GripperInterface):
         goal.goal.width = target_width
         goal.goal.speed = target_speed
 
-        self._move_action_client.send_goal(goal)
+        self._move_action_client.send_goal(goal.goal)
 
         if wait:
             self._move_action_client.wait_for_result()
@@ -204,7 +204,7 @@ class FrankaHandGripper(GripperInterface):
         goal.header.stamp = goal_time
         goal.goal_id.stamp = goal_time
 
-        self._stop_action_client.send_goal(goal)
+        self._stop_action_client.send_goal(goal.goal)
 
         if wait:
             self._stop_action_client.wait_for_result()
@@ -224,7 +224,7 @@ class FrankaHandGripper(GripperInterface):
         goal.goal.epsilon.inner = self._inner_epsilon
         goal.goal.epsilon.outer = self._outer_epsilon
 
-        self._grasp_action_client.send_goal(goal)
+        self._grasp_action_client.send_goal(goal.goal)
 
         if wait:
             self._grasp_action_client.wait_for_result()
@@ -378,6 +378,16 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     Relies on https://github.com/hsp-panda/xela-force-control for the actual force
     control to be enabled.
     """
+
+    # Gripper parameters. These are not supposed to be changable at runtime
+    # TODO config parameter for 2F140 vs 2F85?
+    _gripper_name = "Robotiq 2F"
+    _min_width = 0.0                        # m
+    _max_width = 0.085
+    _min_speed = 0.013                      # m/s
+    _max_speed = 0.1
+    _min_force = 5.0                        # percentage of force (0-100)
+    _max_force = 100.0
 
     def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = ""):
 
