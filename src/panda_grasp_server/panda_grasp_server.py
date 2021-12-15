@@ -13,9 +13,11 @@ from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
 from threading import Lock
 import save_grasp
+import grippers
 import os
 import tf
 import rospkg
+
 
 from panda_ros_common.msg import PandaState
 from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
@@ -52,8 +54,15 @@ def all_close(goal, actual, tolerance):
 
     return True
 
-
 class NodeConfig(object):
+
+    # Ugly but necessary dictionary container class
+    # Translates string into class handle
+    gripper_types = {
+        "FRANKA_HAND"       = grippers.FrankaHandGripper,
+        "ROBOTIQ_2F"        = grippers.Robotiq2FGripper,
+        "ROBOTIQ_2F_FC"     = grippers.Robotiq2FGripperForceControlled
+    }
 
     def __init__(self):
 
@@ -85,10 +94,13 @@ class NodeConfig(object):
         self._planner_id = rospy.get_param("~planning/planner_id", "RRTkConfigDefault")
 
         # Configure the end effector to use in the move group
-        self._eef_link_id = rospy.get_param("~planning/eef_link_id", "panda_hand")
+        self._eef_link_id = rospy.get_param("~planning/eef_link_id", "panda_tcp")
 
         # Enable Rviz visualization of trajectories
         self._publish_rviz = rospy.get_param("~planning/publish_rviz", True)
+
+        # Choose gripper type
+        self._gripper_type = rospy.get_param("~gripper/gripper_type", "FRANKA_HAND")
 
         # Enable force-controlled grasping
         self._enable_force_grasp = rospy.get_param("~ops_params/enable_force_grasp", False)
@@ -210,14 +222,15 @@ class PandaActionServer(object):
                                                 self.set_vel_accel_scaling_factor_callback)
 
         # Configure gripper action clients
-        self._grasp_action_client = actionlib.SimpleActionClient("/franka_gripper/grasp", GraspAction)
-        self._grasp_action_client.wait_for_server()
+        # self._grasp_action_client = actionlib.SimpleActionClient("/franka_gripper/grasp", GraspAction)
+        # self._grasp_action_client.wait_for_server()
 
-        self._move_fingers_action_client = actionlib.SimpleActionClient("/franka_gripper/move", MoveAction)
-        self._move_fingers_action_client.wait_for_server()
+        # self._move_fingers_action_client = actionlib.SimpleActionClient("/franka_gripper/move", MoveAction)
+        # self._move_fingers_action_client.wait_for_server()
 
-        self._stop_gripper_action_client = actionlib.SimpleActionClient("/franka_gripper/stop", StopAction)
-        self._stop_gripper_action_client.wait_for_server()
+        # self._stop_gripper_action_client = actionlib.SimpleActionClient("/franka_gripper/stop", StopAction)
+        # self._stop_gripper_action_client.wait_for_server()
+        self._gripper = config.gripper_types[config._gripper_type]
 
         # Configure TF transform listener
         self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
@@ -364,47 +377,53 @@ class PandaActionServer(object):
         return True
 
     def close_gripper(self):
-        joint_goal = self._move_group_hand.get_current_joint_values()
-        if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
-            return self.command_gripper(0.0)
-        else:
-            rospy.loginfo("gripper already closed")
-            return False
+        # joint_goal = self._move_group_hand.get_current_joint_values()
+        # if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
+        #     return self.command_gripper(0.0)
+        # else:
+        #     rospy.loginfo("gripper already closed")
+        #     return False
+        return self._gripper.close_gripper()
 
     def open_gripper(self):
-        joint_goal = self._move_group_hand.get_current_joint_values()
-        if joint_goal[0] <= 0.04 and joint_goal[1] <= 0.04:
-            return self.command_gripper(0.08)
-        else:
-            rospy.loginfo("gripper already open")
-            return False
+        # joint_goal = self._move_group_hand.get_current_joint_values()
+        # if joint_goal[0] <= 0.04 and joint_goal[1] <= 0.04:
+        #     return self.command_gripper(0.08)
+        # else:
+        #     rospy.loginfo("gripper already open")
+        #     return False
+        return self._gripper.open_gripper()
 
-    def command_gripper(self, gripper_width, velocity=0.3):
+    def command_gripper(self, gripper_width, velocity=0.1):
 
         # Use the actionlib package to queue a move action goal
 
-        move_fingers_goal = MoveActionGoal()
-        move_fingers_goal.goal.width = gripper_width
-        move_fingers_goal.goal.speed = velocity
+        # move_fingers_goal = MoveActionGoal()
+        # move_fingers_goal.goal.width = gripper_width
+        # move_fingers_goal.goal.speed = velocity
 
-        self._move_fingers_action_client.send_goal(move_fingers_goal.goal)
-        self._move_fingers_action_client.wait_for_result(rospy.Duration(10))
+        # self._move_fingers_action_client.send_goal(move_fingers_goal.goal)
+        # self._move_fingers_action_client.wait_for_result(rospy.Duration(10))
 
-        # If the goal is still active after the duration, send a stop goal
+        # # If the goal is still active after the duration, send a stop goal
 
-        move_fingers_result = self._move_fingers_action_client.get_result()
+        # move_fingers_result = self._move_fingers_action_client.get_result()
 
-        if not move_fingers_result:
-            stop_fingers_goal = StopActionGoal()
-            self._stop_gripper_action_client.send_goal(stop_fingers_goal)
-            self._stop_gripper_action_client.wait_for_result(rospy.Duration(5))
+        # if not move_fingers_result:
+        #     stop_fingers_goal = StopActionGoal()
+        #     self._stop_gripper_action_client.send_goal(stop_fingers_goal)
+        #     self._stop_gripper_action_client.wait_for_result(rospy.Duration(5))
 
-            return False
+        #     return False
 
-        return move_fingers_result.success
+        # return move_fingers_result.success
+
+        return move_fingers(gripper_width, velocity)
 
     def get_gripper_state(self):
-        joint_poses = self._move_group_hand.get_current_joint_values()
+        # TODO reimplement this according to new grippers module
+        # joint_poses = self._move_group_hand.get_current_joint_values()
+        joint_poses = [0.0]
         return joint_poses
 
     def get_joints_state(self):
@@ -492,7 +511,6 @@ class PandaActionServer(object):
         elif req.open_gripper:
             return self.open_gripper()
         else:
-            width = abs(req.width) if req.width < 0.10 else 0.10
             return self.command_gripper(width)
 
     def get_state_callback(self, req):
@@ -507,8 +525,10 @@ class PandaActionServer(object):
         robot_state.joints_state = self._move_group.get_current_joint_values()
 
         # Gripper width
-        width = self._move_group_hand.get_current_joint_values()[0] + self._move_group_hand.get_current_joint_values()[1]
-        robot_state.gripper_state = width
+        # TODO: reimplement this!
+        #width = self._move_group_hand.get_current_joint_values()[0] + self._move_group_hand.get_current_joint_values()[1]
+        #robot_state.gripper_state = width
+        robot_state.gripper_state = 0.0
 
         return PandaGetStateResponse(robot_state=robot_state)
 
@@ -665,31 +685,17 @@ class PandaActionServer(object):
 
         return position, quaternion
 
-    def grasp(self, width, force=1, epsilon=0.03, velocity=0.5):
+    def grasp(self, width, velocity=0.5, force=1):
 
         # Execute grasp directly with the gripper action server
         # Different behaviour according to the enable_force_grasp flag
-
         if self._enable_force_grasp:
 
-            # Use the franka_gripper grasp action
-
-            grasp_goal = GraspActionGoal()
-            grasp_goal.goal.width = width
-            grasp_goal.goal.epsilon.inner = grasp_goal.goal.epsilon.outer = epsilon
-            grasp_goal.goal.speed = velocity
-            grasp_goal.goal.force = force
-
-            self._grasp_action_client.send_goal(grasp_goal.goal)
-            self._grasp_action_client.wait_for_result(rospy.Duration(10))
-
-            grasp_result = self._grasp_action_client.get_result()
+            grasp_result = self._gripper.grasp_motion(width, velocity, force)
 
         else:
 
-            # Use the franka_gripper move action
-
-            grasp_result = self.command_gripper(width-0.01, velocity)
+            grasp_result = self._gripper.move_fingers(width, velocity, force)
 
         return grasp_result
 
@@ -774,13 +780,10 @@ class PandaActionServer(object):
         #     return False
 
         # Acquire board pose
-        graspa_board_pose = self.get_GRASPA_board_pose()
+        # graspa_board_pose = self.get_GRASPA_board_pose()
 
         if not self.go_to_pose(pregrasp_pose, "Moving to pregrasp pose"):
             return False
-
-        if not self._enable_force_grasp:
-            self.command_gripper(req.width.data + 0.01)
 
         approach_waypoints = []
         n_approach_waypoints = 10
@@ -806,7 +809,6 @@ class PandaActionServer(object):
         orient_constraint.absolute_z_axis_tolerance = 0.1
         orient_constraint.weight = 1.0
         approach_constraints.orientation_constraints.append(orient_constraint)
-
 
         if not self.execute_trajectory(approach_waypoints, approach_constraints):
 
@@ -872,8 +874,8 @@ class PandaActionServer(object):
             return False
 
         # Try to grasp. In case of failure, go back to pregrasp pose and go home
-
-        if not self.grasp(req.width.data):
+        grasp_success = self.grasp(req.width.data)
+        if not grasp_success:
             rospy.logwarn("Grasp failed!")
             self.open_gripper()
             self.go_to_pose(pregrasp_pose)
@@ -890,14 +892,14 @@ class PandaActionServer(object):
             return False
 
         # Check if grasp was successful
-        gripper_state = self.get_gripper_state()
-        grasp_success = False if sum(gripper_state) <= 0.01 else True
-        rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
-        rospy.loginfo("Grasp success? " + str(grasp_success))
+        # gripper_state = self.get_gripper_state()
+        # grasp_success = False if sum(gripper_state) <= 0.01 else True
+        # rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
+        # rospy.loginfo("Grasp success? " + str(grasp_success))
 
         # Check stability
-        if self._enable_graspa_stab_motion:
-            self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
+        # if self._enable_graspa_stab_motion:
+        #     self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
 
         # Move object out of workspace
         next_pose = lift_pose
@@ -924,12 +926,11 @@ class PandaActionServer(object):
         # graspa_board_pose = self.get_GRASPA_board_pose()
 
         # Save the grasp
-        save = raw_input("Save grasp? [y/N]")
-        if save.lower() == 'y':
-            self.save_grasp(req.grasp.pose, graspa_board_pose)
+        # save = raw_input("Save grasp? [y/N]")
+        # if save.lower() == 'y':
+        #     self.save_grasp(req.grasp.pose, graspa_board_pose)
 
         return grasp_success
-
 
     def evaluate_stability(self, grasp_pose, tcp_travel, approach_rotation_angle=np.pi/4, binormal_rotation_angle=np.pi/6):
 
