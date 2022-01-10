@@ -248,15 +248,15 @@ class PandaActionServer(object):
         self._home_pose.position.z = 0.6
 
         # Alternative home pose in joint values
-        # This home pose is the same defined in the libfranka tutorials
+        # This home pose is the same defined in the moveit package
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        self._home_pose_joints[0:7] = [0,
-                                       -math.pi/4,
-                                       0,
-                                       -3*math.pi/4,
-                                       0,
+        self._home_pose_joints[0:7] = [0.0,
+                                       0.0,
+                                       0.0,
+                                       -math.pi/2,
+                                       0.0,
                                        math.pi/2,
-                                       math.pi/4]
+                                       0.0]
 
         # Natural point of view home pose
         # self._home_pose_joints[0:7] = [-0.12078503605043679,

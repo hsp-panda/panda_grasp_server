@@ -1,6 +1,7 @@
 <launch>
 
     <arg name="load_gripper"                            default="true" />
+    <arg name="gripper_type"                            default="FRANKA_HAND" />
     <arg name="robot_ip"                                default="172.16.0.2" />
     <arg name="table_height"                            default="0.12" />
 
@@ -30,6 +31,7 @@
 
     <!-- Start the grasp and movement server node -->
     <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen">
+        <param name="gripper/gripper_type"              value="$(arg gripper_type)" />
         <param name="workspace/table_height"            value="$(arg table_height)" />
         <!-- Table size and bench size are supposed to be x,y,z -->
         <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" />
