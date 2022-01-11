@@ -389,13 +389,13 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     _min_force = 5.0                        # percentage of force (0-100)
     _max_force = 100.0
 
-    def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = ""):
+    def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = "xela_2f_force_setpoint"):
 
         # Call the superclass
         super().__init__(gripper_action_namespace)
 
         # Add the setpoint service
-        setpoint_service_name = force_setpoint_service_namespace + "/setpoint"
+        setpoint_service_name = force_setpoint_service_namespace + "/generate"
 
         # Set up the service proxy
         rospy.wait_for_service(setpoint_service_name)
