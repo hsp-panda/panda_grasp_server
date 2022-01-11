@@ -411,3 +411,10 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
         except rospy.ServiceException as e:
             print("Setpoint service call failed: %s"%e)
             return False
+
+    def open_gripper(self, target_speed=_max_speed, wait=True):
+
+        # Set the force setpoint to zero and then open the gripper (tentative)
+        self._force_setpoint(-10.0, 0.5)
+        rospy.sleep(rospy.Duration(40))
+        return super(Robotiq2FGripperForceControlled, self).open_gripper()
