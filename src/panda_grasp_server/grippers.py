@@ -401,12 +401,15 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
         rospy.wait_for_service(setpoint_service_name)
         self._force_setpoint = rospy.ServiceProxy(setpoint_service_name, Setpoint)
 
-    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=1.0):
+    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=2.0):
 
         # Make the service call. This is blocking by definition, but returns
         # right away
+
+        self.move_fingers(target_width, target_speed, target_force)
         try:
             self._force_setpoint(target_force, duration)
+            rospy.sleep(rospy.Duration(40))
             return True
         except rospy.ServiceException as e:
             print("Setpoint service call failed: %s"%e)
