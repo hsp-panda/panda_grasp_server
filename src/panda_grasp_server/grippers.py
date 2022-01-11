@@ -6,6 +6,8 @@ from abc import ABCMeta, abstractproperty, abstractmethod
 import rospy
 import actionlib
 
+from std_msgs.msg import Header
+
 # Actions for Franka Hand
 from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
 from franka_gripper.msg import MoveAction, MoveActionGoal, MoveActionResult
@@ -17,7 +19,8 @@ from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperAction, CommandRobo
 # from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import Robotiq2FingerGripperDriver as Robotiq
 
 # Service from module_xela_gripper
-from module_xela_gripper.srv import Setpoint, SetpointRequest
+from xela_2f_force_control.msg import ControllerStatus
+from xela_2f_force_control.srv import Setpoint, SetpointRequest, SetControllerStatus
 
 class GripperInterface(object):
     """ General interface for a Gripper class. Assumes a gripper has a maximum
@@ -389,7 +392,7 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     _min_force = 5.0                        # percentage of force (0-100)
     _max_force = 100.0
 
-    def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = "xela_2f_force_setpoint"):
+    def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = "xela_2f_force_setpoint", force_controller_namespace = "xela_2f_force_controller"):
 
         # Call the superclass
         super(Robotiq2FGripperForceControlled, self).__init__(gripper_action_namespace)
@@ -397,20 +400,35 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
         # Add the setpoint service
         setpoint_service_name = force_setpoint_service_namespace + "/generate"
 
+        # Add the controller status setter service
+        controller_status_setter_name = force_controller_namespace + "/set_controller_status"
+
         # Set up the service proxy
         rospy.wait_for_service(setpoint_service_name)
         self._force_setpoint = rospy.ServiceProxy(setpoint_service_name, Setpoint)
+        rospy.wait_for_service(controller_status_setter_name)
+        self._force_controller_status_set = rospy.ServiceProxy(controller_status_setter_name, SetControllerStatus)
 
-    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=2.0):
+    def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=10.0):
 
-        # Make the service call. This is blocking by definition, but returns
-        # right away
+        # Stop the force controller
+        header = Header()
+        header.stamp = rospy.Time.now()
+        self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_STOPPED))
 
-        self.move_fingers(target_width, target_speed, target_force)
+        # Move the fingers close to the width
+        self.move_fingers(target_width+0.005, target_speed, target_force)
+
+        # Reactivate the force controller with a setpoint (if not faulted)
         try:
-            self._force_setpoint(target_force, duration)
-            rospy.sleep(rospy.Duration(40))
-            return True
+            header.stamp = rospy.Time.now()
+            if self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_RUNNING)):
+                self._force_setpoint(target_force, duration)
+                rospy.sleep(rospy.Duration(20))
+                return True
+            else:
+                rospy.logerr("Force controller not ready!")
+                return False
         except rospy.ServiceException as e:
             print("Setpoint service call failed: %s"%e)
             return False
