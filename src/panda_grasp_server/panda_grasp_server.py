@@ -231,6 +231,7 @@ class PandaActionServer(object):
         # self._stop_gripper_action_client = actionlib.SimpleActionClient("/franka_gripper/stop", StopAction)
         # self._stop_gripper_action_client.wait_for_server()
         self._gripper = config.gripper_types[config._gripper_type]()
+        rospy.loginfo("Gripper setup complete")
 
         # Configure TF transform listener
         self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
