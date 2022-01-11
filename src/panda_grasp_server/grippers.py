@@ -392,7 +392,7 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     def __init__(self, gripper_action_namespace = "", force_setpoint_service_namespace = "xela_2f_force_setpoint"):
 
         # Call the superclass
-        super().__init__(gripper_action_namespace)
+        super(Robotiq2FGripperForceControlled, self).__init__(gripper_action_namespace)
 
         # Add the setpoint service
         setpoint_service_name = force_setpoint_service_namespace + "/generate"
