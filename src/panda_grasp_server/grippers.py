@@ -435,7 +435,23 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
 
     def open_gripper(self, target_speed=_max_speed, wait=True):
 
-        # Set the force setpoint to zero and then open the gripper (tentative)
-        self._force_setpoint(-10.0, 0.5)
-        rospy.sleep(rospy.Duration(40))
+        # Stop the force controller
+        header = Header()
+        header.stamp = rospy.Time.now()
+        self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_STOPPED))
+
+        # Reset setpoint generator
+        self._force_setpoint(0.0, 1.0)
+
+        # Open the gripper
         return super(Robotiq2FGripperForceControlled, self).open_gripper()
+
+    def close_gripper(self, target_speed=_min_speed, target_force=_min_force, wait=True):
+
+        # Stop the force controller
+        header = Header()
+        header.stamp = rospy.Time.now()
+        self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_STOPPED))
+
+        # Close the gripper
+        return super(Robotiq2FGripperForceControlled, self).close_gripper()
