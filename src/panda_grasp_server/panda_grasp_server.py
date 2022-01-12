@@ -686,7 +686,7 @@ class PandaActionServer(object):
 
         return position, quaternion
 
-    def grasp(self, width, velocity=0.5, force=1):
+    def grasp(self, width, velocity=0.5, force=20):
 
         # Execute grasp directly with the gripper action server
         # Different behaviour according to the enable_force_grasp flag
