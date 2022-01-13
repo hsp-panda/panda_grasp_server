@@ -59,9 +59,9 @@ class NodeConfig(object):
     # Ugly but necessary dictionary container class
     # Translates string into class handle
     gripper_types = {
-        "FRANKA_HAND"       = grippers.FrankaHandGripper,
-        "ROBOTIQ_2F"        = grippers.Robotiq2FGripper,
-        "ROBOTIQ_2F_FC"     = grippers.Robotiq2FGripperForceControlled
+        "FRANKA_HAND"       : grippers.FrankaHandGripper,
+        "ROBOTIQ_2F"        : grippers.Robotiq2FGripper,
+        "ROBOTIQ_2F_FC"     : grippers.Robotiq2FGripperForceControlled
     }
 
     def __init__(self):
@@ -127,8 +127,8 @@ class PandaActionServer(object):
         # self._move_group.set_end_effector_link("panda_hand")
         self._move_group.set_end_effector_link(config._eef_link_id)
         self._eef_link = self._move_group.get_end_effector_link()
-        self._move_group_hand = moveit_commander.MoveGroupCommander(
-            "hand")
+        # self._move_group_hand = moveit_commander.MoveGroupCommander(
+        #     "hand")
 
         self._max_velocity_scaling_factor = config._max_velocity_scaling_factor
         self._max_acceleration_scaling_factor = config._max_acceleration_scaling_factor
@@ -137,8 +137,8 @@ class PandaActionServer(object):
         self._move_group.set_max_acceleration_scaling_factor(config._max_acceleration_scaling_factor)
 
         # Setting a lower speed for the gripper to mirror the actual one
-        self._move_group_hand.set_max_velocity_scaling_factor(0.1)
-        self._move_group_hand.set_max_acceleration_scaling_factor(0.1)
+        # self._move_group_hand.set_max_velocity_scaling_factor(0.1)
+        # self._move_group_hand.set_max_acceleration_scaling_factor(0.1)
 
         self._move_group.set_planner_id("RRTkConfigDefault")
 
@@ -230,7 +230,8 @@ class PandaActionServer(object):
 
         # self._stop_gripper_action_client = actionlib.SimpleActionClient("/franka_gripper/stop", StopAction)
         # self._stop_gripper_action_client.wait_for_server()
-        self._gripper = config.gripper_types[config._gripper_type]
+        self._gripper = config.gripper_types[config._gripper_type]()
+        rospy.loginfo("Gripper setup complete")
 
         # Configure TF transform listener
         self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
@@ -248,15 +249,15 @@ class PandaActionServer(object):
         self._home_pose.position.z = 0.6
 
         # Alternative home pose in joint values
-        # This home pose is the same defined in the libfranka tutorials
+        # This home pose is the same defined in the moveit package
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        self._home_pose_joints[0:7] = [0,
-                                       -math.pi/4,
-                                       0,
-                                       -3*math.pi/4,
-                                       0,
+        self._home_pose_joints[0:7] = [0.0,
+                                       0.0,
+                                       0.0,
+                                       -math.pi/2,
+                                       0.0,
                                        math.pi/2,
-                                       math.pi/4]
+                                       0.0]
 
         # Natural point of view home pose
         # self._home_pose_joints[0:7] = [-0.12078503605043679,
@@ -418,7 +419,7 @@ class PandaActionServer(object):
 
         # return move_fingers_result.success
 
-        return move_fingers(gripper_width, velocity)
+        return self._gripper.move_fingers(gripper_width, velocity)
 
     def get_gripper_state(self):
         # TODO reimplement this according to new grippers module
@@ -511,7 +512,7 @@ class PandaActionServer(object):
         elif req.open_gripper:
             return self.open_gripper()
         else:
-            return self.command_gripper(width)
+            return self.command_gripper(req.width)
 
     def get_state_callback(self, req):
 
@@ -613,7 +614,7 @@ class PandaActionServer(object):
     def stop_motion_callback(self, req):
 
         self._move_group.stop()
-        self._move_group_hand.stop()
+        # self._move_group_hand.stop()
         self.set_stopped_status(stopped=True)
 
         return TriggerResponse(
@@ -685,7 +686,7 @@ class PandaActionServer(object):
 
         return position, quaternion
 
-    def grasp(self, width, velocity=0.5, force=1):
+    def grasp(self, width, velocity=0.5, force=20):
 
         # Execute grasp directly with the gripper action server
         # Different behaviour according to the enable_force_grasp flag
