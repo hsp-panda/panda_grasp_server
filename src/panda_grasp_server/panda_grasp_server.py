@@ -241,12 +241,12 @@ class PandaActionServer(object):
         workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
         workbench_pose.pose.position.y = config._bench_mount_point_xy[1]
         workbench_pose.pose.position.z = -config._bench_dimensions[2]/2
-        # Not sure if I need to add the box first
+
+        # Turn off collisions between panda_link0 and workbench
         # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
         self._scene.attach_box('panda_link0', 'workbench', pose=workbench_pose, size=config._bench_dimensions, touch_links=['panda_link0', 'panda_link1'])
 
-        # Turn off collisions between link_0 and workbench
-        #TODO: rewrite this!
+        # Not sure why editing the ACM does not work, I'll leave code here anyway
         # from moveit_msgs.msg import PlanningScene, PlanningSceneComponents
         # from moveit_msgs.srv import GetPlanningScene
         # pub_planning_scene = rospy.Publisher('/planning_scene', PlanningScene, queue_size=10)
@@ -516,7 +516,7 @@ class PandaActionServer(object):
     def stop_motion_callback(self, req):
 
         self._move_group.stop()
-        # self._move_group_hand.stop()
+        self._gripper.stop_gripper()
         self.set_stopped_status(stopped=True)
 
         return TriggerResponse(
@@ -559,34 +559,6 @@ class PandaActionServer(object):
                                            req.new_accel_scaling_factor)
 
         return True
-
-    def _get_pose_from_user(self):
-        position = [0]*3
-        quaternion = [0, 1, 0, 0]
-
-        user_cmd = raw_input("Set desired EE home position as 'x y z':")
-        user_cmd = user_cmd.split()
-        if not len(user_cmd) == 3:
-            user_cmd = input("Wrong input. Try again: ")
-            user_cmd = user_cmd.split()
-            if not len(user_cmd) == 3:
-                return [], []
-
-        for i, cmd in enumerate(user_cmd):
-            position[i] = float(cmd)
-
-        user_cmd = raw_input("Set desired EE home orientation as quaternion 'x y z w': ")
-        user_cmd = user_cmd.split()
-        if not len(user_cmd) == 4:
-            user_cmd = input("Wrong input. Try again: ")
-            user_cmd = user_cmd.split()
-            if not len(user_cmd) == 4:
-                return [], []
-
-        for i, cmd in enumerate(user_cmd):
-            quaternion[i] = float(cmd)
-
-        return position, quaternion
 
     def grasp(self, width, velocity=0.5, force=20):
 
