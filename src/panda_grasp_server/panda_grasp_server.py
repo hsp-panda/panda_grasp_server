@@ -37,23 +37,6 @@ from franka_gripper.msg import MoveAction, MoveActionGoal, MoveActionResult
 from franka_gripper.msg import StopAction, StopActionGoal, StopActionResult
 
 
-def all_close(goal, actual, tolerance):
-
-    # method to ascertain if a joint goal has been reached within some tolerance
-
-    all_equal = True
-    if type(goal) is list:
-        for index in range(len(goal)):
-            if abs(actual[index] - goal[index]) > tolerance:
-                return False
-    elif type(goal) is geometry_msgs.msg.PoseStamped:
-        return all_close(goal.pose, actual.pose, tolerance)
-
-    elif type(goal) is geometry_msgs.msg.Pose:
-        return all_close(pose_to_list(goal), pose_to_list(actual), tolerance)
-
-    return True
-
 class NodeConfig(object):
 
     # Ugly but necessary dictionary container class
