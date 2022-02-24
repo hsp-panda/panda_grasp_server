@@ -12,11 +12,11 @@ import std_msgs.msg
 from std_srvs.srv import Trigger, TriggerRequest, TriggerResponse
 from tf.transformations import quaternion_from_matrix, quaternion_matrix, rotation_matrix
 from threading import Lock
-import save_grasp
 import grippers
 import os
 import tf
 import rospkg
+import graspa_utils
 
 
 from panda_ros_common.msg import PandaState
@@ -92,6 +92,7 @@ class NodeConfig(object):
         self._enable_graspa_stab_motion = rospy.get_param("~ops_params/enable_graspa_stab_motion", False)
 
         # Save grasp path
+        self._save_grasp = rospy.get_param("~ops_params/enable_graspa_save_grasp", False)
         rospack = rospkg.RosPack()
         self._grasp_save_path = rospy.get_param("~ops_params/grasp_save_path", os.path.join(rospack.get_path('panda_grasp_server'), 'dumped_grasps'))
 
@@ -147,6 +148,7 @@ class PandaActionServer(object):
         self._enable_graspa_stab_motion = config._enable_graspa_stab_motion
 
         # Set path to save grasps to
+        self._save_grasp = config._save_grasp
         self._grasp_save_path = config._grasp_save_path
 
         # Configure user input server
@@ -725,46 +727,11 @@ class PandaActionServer(object):
         if not self.go_home(use_joints=True):
             return False
 
-        # if not self.go_to_pose(pregrasp_pose, message="Moving to pregrasp pose"):
-        #     return False
-
-        # Try to enforce an orientation constraint in grasp approach
-        # self._move_group.clear_pose_targets()
-        # grasp_constraint = moveit_msgs.msg.Constraints()
-        # grasp_constraint.name = "Grasp approach constraints"
-
-        # orient_constraint = moveit_msgs.msg.OrientationConstraint()
-        # orient_constraint.header.frame_id = "panda_link0"
-        # orient_constraint.link_name = "panda_tcp"
-        # orient_constraint.orientation = target_grasp_pose_q
-        # orient_constraint.absolute_x_axis_tolerance = 0.1
-        # orient_constraint.absolute_y_axis_tolerance = 0.1
-        # orient_constraint.absolute_z_axis_tolerance = 0.1
-        # orient_constraint.weight = 1.0
-        # grasp_constraint.orientation_constraints.append(orient_constraint)
-
-        # self._move_group.set_path_constraints(grasp_constraint)
-        # self._move_group.set_planning_time = 10.0
-        # self._move_group.set_pose_target(req.grasp.pose)
-
-        # if not self._motion_stopped:
-        #     plan = self._move_group.plan()
-        #     if not self._move_group.execute(plan, wait=True):
-        #         rospy.loginfo("Trajectory planning has failed")
-        #         self._move_group.stop()
-        #         self._move_group.clear_pose_targets()
-        #         self._move_group.clear_path_constraints()
-        #         return False
-        #     self._move_group.clear_path_constraints()
-        # else:
-        #     rospy.loginfo("Motion is stopped. Aborting movement")
-        #     self._move_group.stop()
-        #     self._move_group.clear_pose_targets()
-        #     self._move_group.clear_path_constraints()
-        #     return False
-
-        # Acquire board pose
-        # graspa_board_pose = self.get_GRASPA_board_pose()
+        # We acquire the board pose, if needed, before moving the robot
+        if self._save_grasp:
+            graspa_board_pose = graspa_utils.get_GRASPA_board_pose(self._tf_listener)
+        else:
+            graspa_board_pose = None
 
         if not self.go_to_pose(pregrasp_pose, "Moving to pregrasp pose"):
             return False
@@ -882,8 +849,8 @@ class PandaActionServer(object):
         # rospy.loginfo("Grasp success? " + str(grasp_success))
 
         # Check stability
-        # if self._enable_graspa_stab_motion:
-        #     self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
+        if self._enable_graspa_stab_motion:
+            self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
 
         # Move object out of workspace
         next_pose = lift_pose
@@ -906,13 +873,11 @@ class PandaActionServer(object):
 
         self.go_home(use_joints=True)
 
-        # Save GRASPA aruco board if present
-        # graspa_board_pose = self.get_GRASPA_board_pose()
-
-        # Save the grasp
-        # save = raw_input("Save grasp? [y/N]")
-        # if save.lower() == 'y':
-        #     self.save_grasp(req.grasp.pose, graspa_board_pose)
+        if self._save_grasp:
+            # Save the grasp
+            save = raw_input("Save grasp? [y/N]")
+            if save.lower() == 'y':
+                graspa_utils.save_GRASPA_grasp(self._grasp_save_path, req.grasp_pose, graspa_board_pose)
 
         return grasp_success
 
@@ -1012,87 +977,6 @@ class PandaActionServer(object):
         # self.go_to_pose(wp_start)
 
         return True
-
-    def get_GRASPA_board_pose(self):
-
-        # Check if the board and base tf frames are available
-        frame1 = 'panda_link0'
-        frame2 = 'graspa_board'
-
-        if not (self._tf_listener.frameExists(frame1) and self._tf_listener.frameExists(frame2)):
-            rospy.logerr("Either tf transform {} or {} do not exist".format(frame1, frame2))
-            return geometry_msgs.msg.PoseStamped()
-
-        self._tf_listener.waitForTransform(frame1, frame2, rospy.Time.now(), rospy.Duration(5.0))
-        last_heard_time = self._tf_listener.getLatestCommonTime(frame1, frame2)
-
-        # Get the GRASPA board reference frame pose
-        pose_board = geometry_msgs.msg.PoseStamped()
-        pose_board.header.frame_id = frame2
-        # pose_board.header.stamp = last_heard_time
-        pose_board.pose.orientation.w = 1.0
-        pose_board = self._tf_listener.transformPose(frame1, pose_board)
-
-        rospy.loginfo("Acquired GRASPA board pose:")
-        rospy.loginfo(pose_board)
-
-        return pose_board
-
-    def save_grasp(self, grasp_pose, graspa_board_pose=None):
-
-        # save the pose according to the graspa standard
-
-        grasp_result = save_grasp.GRASPAResult()
-
-        # Check path
-        if not (os.path.isdir(self._grasp_save_path)):
-
-            rospy.loginfo("Creating directory {}".format(self._grasp_save_path))
-            os.mkdir(self._grasp_save_path)
-
-        # Get object name
-        grasp_obj = rospy.get_param("~ops_param/current_obj", 'any')
-
-        if (raw_input("Current object: {}. Change object? [y/N]".format(grasp_obj)).lower() == 'y') or grasp_obj == 'any':
-            grasp_obj = raw_input("Enter object name: ")
-            rospy.set_param("~ops_param/current_obj", grasp_obj)
-
-        # Get scores
-        grasped_score = -1.0
-        while (grasped_score < 0.0) or (grasped_score > 1.0):
-            try:
-                grasped_score = float(raw_input("Object grasped? [0.0, 1.0]"))
-            except ValueError:
-                grasped_score = -1.0
-        stab_score = -1.0
-        while (stab_score < 0.0) or (stab_score > 1.0):
-            try:
-                stab_score = float(raw_input("Enter stability score [0.0, 1.0]"))
-            except ValueError:
-                stab_score = -1.0
-
-        # Get the board pose
-        if not graspa_board_pose:
-            graspa_board_pose = self.get_GRASPA_board_pose()
-
-        # Fill in results and save
-        grasp_result.set_savepath(self._grasp_save_path)
-        grasp_result.set_poses(graspa_board_pose.pose, grasp_pose.pose if isinstance(grasp_pose, geometry_msgs.msg.PoseStamped) else grasp_pose)
-        grasp_result.set_obj_name(grasp_obj)
-        grasp_result.set_stability_score(stab_score)
-        grasp_result.set_grasped_score(grasped_score)
-
-        try:
-
-            grasp_result.save_result()
-            rospy.loginfo("Grasp info saved!")
-            return True
-
-        except Exception as exc:
-
-            rospy.logerr("Error saving grasp results: {}".format(exc.message))
-            return False
-
 
 def main():
 
