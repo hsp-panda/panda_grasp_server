@@ -116,11 +116,7 @@ class PandaActionServer(object):
         self._move_group.set_max_velocity_scaling_factor(config._max_velocity_scaling_factor)
         self._move_group.set_max_acceleration_scaling_factor(config._max_acceleration_scaling_factor)
 
-        # Setting a lower speed for the gripper to mirror the actual one
-        # self._move_group_hand.set_max_velocity_scaling_factor(0.1)
-        # self._move_group_hand.set_max_acceleration_scaling_factor(0.1)
-
-        self._move_group.set_planner_id("RRTkConfigDefault")
+        self._move_group.set_planner_id(config._planner_id)
 
         # Display trajectories in Rviz
         self._publish_rviz = config._publish_rviz
@@ -667,14 +663,13 @@ class PandaActionServer(object):
             wp.position.x = pregrasp_pose.position.x + approach_range_x * idx_waypoint / n_approach_waypoints
             wp.position.y = pregrasp_pose.position.y + approach_range_y * idx_waypoint / n_approach_waypoints
             wp.position.z = pregrasp_pose.position.z + approach_range_z * idx_waypoint / n_approach_waypoints
-
             approach_waypoints.append(wp)
 
         # Try enforcing a constraint during approach
         approach_constraints = moveit_msgs.msg.Constraints()
         orient_constraint = moveit_msgs.msg.OrientationConstraint()
         orient_constraint.header.frame_id = "panda_link0"
-        orient_constraint.link_name = "panda_tcp"
+        orient_constraint.link_name = self._eef_link
         orient_constraint.orientation = pregrasp_pose.orientation
         orient_constraint.absolute_x_axis_tolerance = 0.1
         orient_constraint.absolute_y_axis_tolerance = 0.1
