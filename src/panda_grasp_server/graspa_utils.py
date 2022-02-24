@@ -1,4 +1,4 @@
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 import xml.etree.ElementTree as ET
 import pyquaternion as pq
 import numpy as np
@@ -6,6 +6,8 @@ import os
 from xml.dom import minidom
 from xml.dom.minidom import Node
 from rospy_message_converter import message_converter
+import rospy
+import tf
 
 def remove_blanks(node):
     """Recursive function to explore the XML tree and purge whitespaces in nodes.
@@ -22,6 +24,35 @@ def remove_blanks(node):
                 x.nodeValue = x.nodeValue.strip()
         elif x.nodeType == Node.ELEMENT_NODE:
             remove_blanks(x)
+
+
+def get_GRASPA_board_pose(base_frame = 'panda_link0', board_frame = 'graspa_board'):
+
+    # Get the GRASPA board pose and return it as a PoseStamped
+
+    # Check if the board and base tf frames are available
+
+    tf_listener = tf.TransformListener(True, rospy.Duration(10))
+
+    if not (tf_listener.frameExists(base_frame) and tf_listener.frameExists(board_frame)):
+        rospy.logerr("Either tf transform {} or {} do not exist".format(base_frame, board_frame))
+        return geometry_msgs.msg.PoseStamped()
+
+    tf_listener.waitForTransform(base_frame, board_frame, rospy.Time.now(), rospy.Duration(5.0))
+    last_heard_time = tf_listener.getLatestCommonTime(base_frame, board_frame)
+
+    # Get the GRASPA board reference frame pose
+    pose_board = geometry_msgs.msg.PoseStamped()
+    pose_board.header.frame_id = board_frame
+    # pose_board.header.stamp = last_heard_time
+    pose_board.pose.orientation.w = 1.0
+    pose_board = tf_listener.transformPose(base_frame, pose_board)
+
+    rospy.loginfo("Acquired GRASPA board pose:")
+    rospy.loginfo(pose_board)
+
+    return pose_board
+
 
 class GRASPAResult(object):
     """Class to create and save GRASPA-compatible XML files
