@@ -107,12 +107,8 @@ class PandaActionServer(object):
         self._group_name = "panda_arm"
         self._move_group = moveit_commander.MoveGroupCommander(
             self._group_name)
-        # self._move_group.set_end_effector_link("panda_tcp")
-        # self._move_group.set_end_effector_link("panda_hand")
         self._move_group.set_end_effector_link(config._eef_link_id)
         self._eef_link = self._move_group.get_end_effector_link()
-        # self._move_group_hand = moveit_commander.MoveGroupCommander(
-        #     "hand")
 
         self._max_velocity_scaling_factor = config._max_velocity_scaling_factor
         self._max_acceleration_scaling_factor = config._max_acceleration_scaling_factor
@@ -150,11 +146,6 @@ class PandaActionServer(object):
         # Set path to save grasps to
         self._save_grasp = config._save_grasp
         self._grasp_save_path = config._grasp_save_path
-
-        # Configure user input server
-        # self._cmd_srv = rospy.Service(config._user_cmd_service_name,
-        #                               UserCmd,
-        #                               self.user_cmd_callback)
 
         # Configure grasping server
         self._grasp_service = rospy.Service(config._grasp_service_name,
@@ -207,19 +198,11 @@ class PandaActionServer(object):
                                                 self.set_vel_accel_scaling_factor_callback)
 
         # Configure gripper action clients
-        # self._grasp_action_client = actionlib.SimpleActionClient("/franka_gripper/grasp", GraspAction)
-        # self._grasp_action_client.wait_for_server()
-
-        # self._move_fingers_action_client = actionlib.SimpleActionClient("/franka_gripper/move", MoveAction)
-        # self._move_fingers_action_client.wait_for_server()
-
-        # self._stop_gripper_action_client = actionlib.SimpleActionClient("/franka_gripper/stop", StopAction)
-        # self._stop_gripper_action_client.wait_for_server()
         self._gripper = config.gripper_types[config._gripper_type]()
         rospy.loginfo("Gripper setup complete")
 
         # Configure TF transform listener
-        self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
+        # self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -244,23 +227,6 @@ class PandaActionServer(object):
                                        math.pi/2,
                                        0.0]
 
-        # Natural point of view home pose
-        # self._home_pose_joints[0:7] = [-0.12078503605043679,
-        #                                -1.2980767531980548,
-        #                                0.026837484857365677,
-        #                                -2.386302989257368,
-        #                                0.07335721945762633,
-        #                                1.6099749157428742,
-        #                                0.7011881882676905]
-
-        # Top view home pose
-        # self._home_pose_joints[0:7] = [-0.11899186470606302,
-        #                                 0.19508951544466327,
-        #                                 0.16070551717281342,
-        #                                 -0.7810808577788521,
-        #                                 -0.03693424248492326,
-        #                                 0.9725300767315923,
-        #                                 0.8035825639052523]
 
         # Add table as a collision object
         if config._table_height is not None:
@@ -292,7 +258,6 @@ class PandaActionServer(object):
         # get_planning_scene = rospy.ServiceProxy('/get_planning_scene', GetPlanningScene)
         # request = PlanningSceneComponents(components=PlanningSceneComponents.ALLOWED_COLLISION_MATRIX)
         # response = get_planning_scene(request)
-
         # acm = response.scene.allowed_collision_matrix
         # if not 'workbench' in acm.default_entry_names:
         #     # add button to allowed collision matrix
@@ -363,46 +328,17 @@ class PandaActionServer(object):
         return True
 
     def close_gripper(self):
-        # joint_goal = self._move_group_hand.get_current_joint_values()
-        # if joint_goal[0] > 0.03 and joint_goal[1] > 0.03:
-        #     return self.command_gripper(0.0)
-        # else:
-        #     rospy.loginfo("gripper already closed")
-        #     return False
+
         return self._gripper.close_gripper()
 
     def open_gripper(self):
-        # joint_goal = self._move_group_hand.get_current_joint_values()
-        # if joint_goal[0] <= 0.04 and joint_goal[1] <= 0.04:
-        #     return self.command_gripper(0.08)
-        # else:
-        #     rospy.loginfo("gripper already open")
-        #     return False
+
         return self._gripper.open_gripper()
 
     def command_gripper(self, gripper_width, velocity=0.1):
 
-        # Use the actionlib package to queue a move action goal
-
-        # move_fingers_goal = MoveActionGoal()
-        # move_fingers_goal.goal.width = gripper_width
-        # move_fingers_goal.goal.speed = velocity
-
-        # self._move_fingers_action_client.send_goal(move_fingers_goal.goal)
-        # self._move_fingers_action_client.wait_for_result(rospy.Duration(10))
-
-        # # If the goal is still active after the duration, send a stop goal
-
-        # move_fingers_result = self._move_fingers_action_client.get_result()
-
-        # if not move_fingers_result:
-        #     stop_fingers_goal = StopActionGoal()
-        #     self._stop_gripper_action_client.send_goal(stop_fingers_goal)
-        #     self._stop_gripper_action_client.wait_for_result(rospy.Duration(5))
-
-        #     return False
-
-        # return move_fingers_result.success
+        # This command just moves the fingers. Actual gripper behaviour
+        # depends on what type of gripper is actually used
 
         return self._gripper.move_fingers(gripper_width, velocity)
 
@@ -427,9 +363,6 @@ class PandaActionServer(object):
                     self._move_group.get_current_pose().pose.position.y,
                     self._move_group.get_current_pose().pose.position.z]
 
-        # rospy.loginfo("current gripper pose is:")
-        # rospy.loginfo(position)
-        # rospy.loginfo(quaternion)
         return [position, quaternion]
 
     def go_to_pose(self, target_pose, message=None):
@@ -460,18 +393,6 @@ class PandaActionServer(object):
         target_pose = self._move_group.get_current_pose()
         target_pose.pose.position = req.target_pose.pose.position
         target_pose.pose.orientation = req.target_pose.pose.orientation
-        # self._move_group.set_pose_target(target_pose)
-
-        # plan = self._move_group.plan()
-        # if plan.joint_trajectory.points:
-        #     rospy.loginfo("Executing motion")
-        #     move_success = self._move_group.execute(plan, wait=True)
-        # else:
-        #     rospy.loginfo("Trajectory planning has failed")
-        #     move_success = False
-
-        # self._move_group.stop()
-        # self._move_group.clear_pose_targets()
 
         move_success = self.go_to_pose(target_pose, message='Executing motion')
 
@@ -858,9 +779,6 @@ class PandaActionServer(object):
         next_pose.orientation.y = 0
         next_pose.orientation.z = 0
         next_pose.orientation.w = 0
-
-        # if not self.go_to_pose(next_pose):
-        #     return False
 
         next_pose.position.x = 0.45
         next_pose.position.y = -0.5
