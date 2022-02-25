@@ -59,21 +59,21 @@ def save_GRASPA_grasp(grasp_save_path, grasp_pose, graspa_board_pose=None):
         grasp_result = GRASPAResult()
 
         # Get object name, layout, and algorithm
-        current_object = rospy.get_param("~ops_param/current_obj", 'any')
-        current_layout = rospy.get_param("~ops_param/current_layout", 'any')
-        current_alg    = rospy.get_param("~ops_param/current_algorithm", 'any')
+        current_object = rospy.get_param("~ops_params/current_obj", 'any')
+        current_layout = rospy.get_param("~ops_params/current_layout", 'any')
+        current_alg    = rospy.get_param("~ops_params/current_algorithm", 'any')
 
         if (raw_input("Current layout: {}. Change layout? [y/N]".format(current_layout)).lower() == 'y') or current_layout == 'any':
             current_layout = raw_input("Enter layout number: ")
-            rospy.set_param("~ops_param/current_layout", current_layout)
+            rospy.set_param("~ops_params/current_layout", current_layout)
 
         if (raw_input("Current algorithm: {}. Change algorithm? [y/N]".format(current_alg)).lower() == 'y') or current_alg == 'any':
             current_alg = raw_input("Enter algorithm name: ")
-            rospy.set_param("~ops_param/current_algorithm", current_alg)
+            rospy.set_param("~ops_params/current_algorithm", current_alg)
 
         if (raw_input("Current object: {}. Change object? [y/N]".format(current_object)).lower() == 'y') or current_object == 'any':
             current_object = raw_input("Enter object name: ")
-            rospy.set_param("~ops_param/current_obj", current_object)
+            rospy.set_param("~ops_params/current_obj", current_object)
 
         # Check if path exists, otherwise create it
         full_graspa_save_path = os.path.join(grasp_save_path, current_alg, current_layout)
