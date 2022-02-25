@@ -1,4 +1,4 @@
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, PoseStamped
 import xml.etree.ElementTree as ET
 import pyquaternion as pq
 import numpy as np
@@ -6,8 +6,18 @@ import os
 from xml.dom import minidom
 from xml.dom.minidom import Node
 from rospy_message_converter import message_converter
+import rospy
+import tf
 
 def remove_blanks(node):
+    """Recursive function to explore the XML tree and purge whitespaces in nodes.
+
+    Parameters
+    ----------
+    node : xml.dom.minidom.Document or xml.dom.minidom.Node
+        The DOM tree to parse or a terminal node
+    """
+
     for x in node.childNodes:
         if x.nodeType == Node.TEXT_NODE:
             if x.nodeValue:
@@ -15,7 +25,105 @@ def remove_blanks(node):
         elif x.nodeType == Node.ELEMENT_NODE:
             remove_blanks(x)
 
+
+def get_GRASPA_board_pose(tf_listener, base_frame = 'panda_link0', board_frame = 'graspa_board'):
+
+    # Get the GRASPA board pose and return it as a PoseStamped
+
+    # Check if the board and base tf frames are available
+
+    if not (tf_listener.frameExists(base_frame) and tf_listener.frameExists(board_frame)):
+        rospy.logerr("Either tf transform {} or {} do not exist".format(base_frame, board_frame))
+        return PoseStamped()
+
+    tf_listener.waitForTransform(base_frame, board_frame, rospy.Time.now(), rospy.Duration(5.0))
+    last_heard_time = tf_listener.getLatestCommonTime(base_frame, board_frame)
+
+    # Get the GRASPA board reference frame pose
+    pose_board = PoseStamped()
+    pose_board.header.frame_id = board_frame
+    # pose_board.header.stamp = last_heard_time
+    pose_board.pose.orientation.w = 1.0
+    pose_board = tf_listener.transformPose(base_frame, pose_board)
+
+    rospy.loginfo("Acquired GRASPA board pose:")
+    rospy.loginfo(pose_board)
+
+    return pose_board
+
+
+def save_GRASPA_grasp(grasp_save_path, grasp_pose, graspa_board_pose=None):
+
+        # save the pose according to the graspa standard
+
+        grasp_result = GRASPAResult()
+
+        # Get object name, layout, and algorithm
+        current_object = rospy.get_param("~ops_param/current_obj", 'any')
+        current_layout = rospy.get_param("~ops_param/current_layout", 'any')
+        current_alg    = rospy.get_param("~ops_param/current_algorithm", 'any')
+
+        if (raw_input("Current layout: {}. Change layout? [y/N]".format(current_layout)).lower() == 'y') or current_layout == 'any':
+            current_layout = raw_input("Enter layout number: ")
+            rospy.set_param("~ops_param/current_layout", current_layout)
+
+        if (raw_input("Current algorithm: {}. Change algorithm? [y/N]".format(current_alg)).lower() == 'y') or current_alg == 'any':
+            current_alg = raw_input("Enter algorithm name: ")
+            rospy.set_param("~ops_param/current_algorithm", current_alg)
+
+        if (raw_input("Current object: {}. Change object? [y/N]".format(current_object)).lower() == 'y') or current_object == 'any':
+            current_object = raw_input("Enter object name: ")
+            rospy.set_param("~ops_param/current_obj", current_object)
+
+        # Check if path exists, otherwise create it
+        full_graspa_save_path = os.path.join(grasp_save_path, current_alg, current_layout)
+        if not (os.path.isdir(full_graspa_save_path)):
+            rospy.loginfo("Creating directory {}".format(full_graspa_save_path))
+            os.makedirs(full_graspa_save_path)
+        else:
+            rospy.loginfo("Directory {} already exists, hence I'll use that".format(full_graspa_save_path))
+
+        # Get scores
+        grasped_score = -1.0
+        while (grasped_score < 0.0) or (grasped_score > 1.0):
+            try:
+                grasped_score = float(raw_input("Object grasped? [0.0, 1.0]"))
+            except ValueError:
+                grasped_score = -1.0
+        stab_score = -1.0
+        while (stab_score < 0.0) or (stab_score > 1.0):
+            try:
+                stab_score = float(raw_input("Enter stability score [0.0, 1.0]"))
+            except ValueError:
+                stab_score = -1.0
+
+        # Get the board pose
+        # We should have it already though
+        if not graspa_board_pose:
+            graspa_board_pose = get_GRASPA_board_pose()
+
+        # Fill in results and save
+        grasp_result.set_savepath(full_graspa_save_path)
+        grasp_result.set_poses(graspa_board_pose.pose, grasp_pose.pose if isinstance(grasp_pose, PoseStamped) else grasp_pose)
+        grasp_result.set_obj_name(current_object)
+        grasp_result.set_layout_name(current_layout)
+        grasp_result.set_algorithm_name(current_alg)
+        grasp_result.set_stability_score(stab_score)
+        grasp_result.set_grasped_score(grasped_score)
+
+        try:
+            grasp_result.save_result()
+            rospy.loginfo("Grasp info saved!")
+            return True
+
+        except Exception as exc:
+            rospy.logerr("Error saving grasp results: {}".format(exc.message))
+            return False
+
+
 class GRASPAResult(object):
+    """Class to create and save GRASPA-compatible XML files
+    """
 
     def __init__(self):
 
@@ -26,7 +134,9 @@ class GRASPAResult(object):
         self._grasp_pose.orientation.x = 1.0
 
         self._savepath = "."
-        self._object_name = "none"
+        self._object_name = None
+        self._layout = None
+        self._algorithm = None
 
         self._stability_score = 0.0
         self._grasped_score = False
@@ -52,76 +162,13 @@ class GRASPAResult(object):
 
         self._object_name = str(obj_name)
 
-    def save_result_simple(self):
+    def set_layout_name(self, layout_name):
 
-        board_rotation = pq.Quaternion(self._board_pose.orientation.w,
-                                       self._board_pose.orientation.x,
-                                       self._board_pose.orientation.y,
-                                       self._board_pose.orientation.z)
+        self._layout = str(layout_name)
 
-        board_position = np.array([self._board_pose.position.x,
-                                   self._board_pose.position.y,
-                                   self._board_pose.position.z])
+    def set_algorithm_name(self, alg_name):
 
-        board_T_matrix = board_rotation.transformation_matrix
-        board_T_matrix[:3, 3] = board_position
-
-        grasp_rotation = pq.Quaternion(self._grasp_pose.orientation.w,
-                                      self._grasp_pose.orientation.x,
-                                      self._grasp_pose.orientation.y,
-                                      self._grasp_pose.orientation.z)
-
-        grasp_position = np.array([self._grasp_pose.position.x,
-                                   self._grasp_pose.position.y,
-                                   self._grasp_pose.position.z])
-
-        grasp_T_matrix = grasp_rotation.transformation_matrix
-        grasp_T_matrix[:3, 3] = grasp_position
-
-        # Compute the grasping pose in the board ref frame
-
-        grasp_T_board = np.dot(np.linalg.inv(board_T_matrix), grasp_T_matrix)
-
-        # Create the file structure
-
-        grasp_data = ET.Element('grasp_data')
-
-        object_field = ET.SubElement(grasp_data, 'ManipulationObject')
-        object_field.set('name', self._object_name)
-
-        matrix = ET.SubElement(object_field, 'Matrix4x4')
-        row1 = ET.SubElement(matrix, 'row1')
-        row2 = ET.SubElement(matrix, 'row2')
-        row3 = ET.SubElement(matrix, 'row3')
-        row4 = ET.SubElement(matrix, 'row4')
-
-        for col_idx in range(4):
-            row1.set('c'+str(col_idx+1), str(grasp_T_board[0,col_idx]))
-            row2.set('c'+str(col_idx+1), str(grasp_T_board[1,col_idx]))
-            row3.set('c'+str(col_idx+1), str(grasp_T_board[2,col_idx]))
-            row4.set('c'+str(col_idx+1), str(grasp_T_board[3,col_idx]))
-
-        grasped_field = ET.SubElement(grasp_data, 'Grasped')
-        grasped_field_entry = ET.SubElement(grasped_field, 'Grasp')
-        grasped_field_entry.set('name', 'Grasp 0')
-        grasped_field_entry.set('quality', str(1) if self._grasped_score else str(0))
-
-        stability_field = ET.SubElement(grasp_data, 'GraspStability')
-        stability_field_entry = ET.SubElement(stability_field, 'Grasp')
-        stability_field_entry.set('name', 'Grasp 0')
-        stability_field_entry.set('quality', str(self._stability_score))
-
-        # Build filename
-
-        filename = "."
-        for grasp_idx in range(1000):
-            filename = os.path.join(os.path.abspath(self._savepath), "grasp_" + self._object_name + "_{:03d}.xml".format(grasp_idx))
-            if not os.path.isfile(filename): break
-
-        domstring = minidom.parseString(ET.tostring(grasp_data))
-
-        with open(filename, "w") as handle:
-            handle.write(domstring.toprettyxml())
+        self._algorithm = str(alg_name)
 
     def save_result(self):
 
@@ -175,7 +222,7 @@ class GRASPAResult(object):
         # Filenames in GRASPA are something like YcbObjectName_grasp.xml
 
         name_graspa_savefile = "Ycb" + "".join([string.capitalize() for string in self._object_name.split('_')])
-        filename = os.path.join(os.path.abspath(self._savepath), name_graspa_savefile, "_grasp.xml")
+        filename = os.path.join(os.path.abspath(self._savepath), name_graspa_savefile + "_grasp.xml")
 
         current_grasp_idx = 0
         tree = None
