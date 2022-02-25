@@ -198,7 +198,7 @@ class PandaActionServer(object):
         rospy.loginfo("Gripper setup complete")
 
         # Configure TF transform listener
-        # self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
+        self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
 
         # Configure home pose
         self._home_pose = geometry_msgs.msg.Pose()
@@ -762,7 +762,7 @@ class PandaActionServer(object):
             # Save the grasp
             save = raw_input("Save grasp? [y/N]")
             if save.lower() == 'y':
-                graspa_utils.save_GRASPA_grasp(self._grasp_save_path, req.grasp_pose, graspa_board_pose)
+                graspa_utils.save_GRASPA_grasp(self._grasp_save_path, req.grasp, graspa_board_pose)
 
         return grasp_success
 

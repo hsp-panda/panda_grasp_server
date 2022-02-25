@@ -26,23 +26,21 @@ def remove_blanks(node):
             remove_blanks(x)
 
 
-def get_GRASPA_board_pose(base_frame = 'panda_link0', board_frame = 'graspa_board'):
+def get_GRASPA_board_pose(tf_listener, base_frame = 'panda_link0', board_frame = 'graspa_board'):
 
     # Get the GRASPA board pose and return it as a PoseStamped
 
     # Check if the board and base tf frames are available
 
-    tf_listener = tf.TransformListener(True, rospy.Duration(10))
-
     if not (tf_listener.frameExists(base_frame) and tf_listener.frameExists(board_frame)):
         rospy.logerr("Either tf transform {} or {} do not exist".format(base_frame, board_frame))
-        return geometry_msgs.msg.PoseStamped()
+        return PoseStamped()
 
     tf_listener.waitForTransform(base_frame, board_frame, rospy.Time.now(), rospy.Duration(5.0))
     last_heard_time = tf_listener.getLatestCommonTime(base_frame, board_frame)
 
     # Get the GRASPA board reference frame pose
-    pose_board = geometry_msgs.msg.PoseStamped()
+    pose_board = PoseStamped()
     pose_board.header.frame_id = board_frame
     # pose_board.header.stamp = last_heard_time
     pose_board.pose.orientation.w = 1.0
