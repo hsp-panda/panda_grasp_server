@@ -45,20 +45,20 @@
     <!-- Start the grasp and movement server node -->
     <rosparam command="load" file="$(find panda_grasp_server)/config/grasp_server_config.yaml" ns="panda_grasp_server" />
     <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen">
-        <!-- <param name="gripper/gripper_type"              value="$(arg gripper_type)" />
+        <param name="gripper/gripper_type"              value="$(arg gripper_type)" />
         <param name="workspace/table_height"            value="$(arg table_height)" />
         <!-- Table size and bench size are supposed to be x,y,z -->
-        <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" />
-        <param name="workspace/bench_size"              value="[0.6, 0.6, 0.6]" type="yaml"/>
+        <!-- <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" /> -->
+        <!-- <param name="workspace/bench_size"              value="[0.6, 0.6, 0.6]" type="yaml"/> -->
         <!-- Offset expressed in x,y coordinates with respect to the bench top surface center -->
-        <param name="workspace/bench_mount_xy"          value="[0.1, 0.0]" type="yaml"/>
-        <param name="planning/max_vel_scaling_factor"   value="0.3" />
-        <param name="planning/max_acc_scaling_factor"   value="0.3" />
-        <param name="planning/eef_link_id"              value="panda_tcp" if="$(arg load_gripper)"/>
-        <param name="planning/eef_link_id"              value="panda_hand" unless="$(arg load_gripper)"/>
+        <!-- <param name="workspace/bench_mount_xy"          value="[0.1, 0.0]" type="yaml"/> -->
+        <!-- <param name="planning/max_vel_scaling_factor"   value="0.3" /> -->
+        <!-- <param name="planning/max_acc_scaling_factor"   value="0.3" /> -->
+        <!-- <param name="planning/eef_link_id"              value="panda_tcp" if="$(arg load_gripper)"/> -->
+        <!-- <param name="planning/eef_link_id"              value="panda_hand" unless="$(arg load_gripper)"/> -->
         <param name="ops_params/enable_force_grasp"     value="$(arg
         enable_force_grasp)"/>
-        <param name="ops_params/enable_graspa_stab_motion" value="$(arg enable_graspa_stab_motion)" /> -->
+        <!-- <param name="ops_params/enable_graspa_stab_motion" value="$(arg enable_graspa_stab_motion)" /> --> -->
     </node>
 
 </launch>
