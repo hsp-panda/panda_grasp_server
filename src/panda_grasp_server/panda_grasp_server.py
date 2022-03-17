@@ -574,15 +574,51 @@ class PandaActionServer(object):
 
         return grasp_result
 
+    def check_trajectory_feasibility(self, goals):
+
+        # Check if a trajectory from the current status to the end goal
+        # can be computed successfully
+        # Return true or false
+
+        robot_initial_state = self._move_group.get_current_state()
+        robot_current_state = copy.deepcopy(robot_initial_state)
+
+        for next_goal in goals:
+
+            # Plan from current state to next goal
+            self._move_group.clear_pose_targets()
+            self._move_group.set_start_state(robot_current_state)
+            self._move_group.set_pose_target(next_goal)
+            current_plan = self._move_group.plan()
+
+            # Return if any part of the plan is not feasible
+            if not current_plan.joint_trajectory.points:
+                self._move_group.clear_pose_targets()
+                self._move_group.set_start_state(robot_initial_state)
+                return False
+
+            # If a plan is feasible, set final goal of previous plan a current state
+            joint_val_list = list(robot_current_state.joint_state.position)
+            for joint_idx, joint_val in enumerate(current_plan.joint_trajectory.points[-1].positions):
+                joint_val_list[joint_idx] = joint_val
+            robot_current_state.joint_state.position = tuple(joint_val_list)
+
+        # If we got this far, the whole thing is feasible
+        self._move_group.clear_pose_targets()
+        self._move_group.set_start_state(robot_initial_state)
+        return True
+
     def do_grasp_callback(self, req):
 
         rospy.loginfo('%s: Executing grasp' %
                       (self._grasp_service.resolved_name))
 
-        # Move fingers in pre grasp pose
-        # self.command_gripper(req.width.data)
-        self.open_gripper()
+        # First of all, define a bunch of intermediate goals
+        # Pregrasp
+        # Lift pose
+        # Drop pose
 
+        # ---------------- Compute pregrasp pose
         # Transform grasp in homogeneous matrix notation
         target_grasp_pose_q = req.grasp.pose.orientation
         target_grasp_pose_p = req.grasp.pose.position
@@ -612,6 +648,30 @@ class PandaActionServer(object):
         pregrasp_pose.position.x = pregrasp[0, 3]
         pregrasp_pose.position.y = pregrasp[1, 3]
         pregrasp_pose.position.z = pregrasp[2, 3]
+
+        # ---------------- Compute lift pose
+        lift_pose = copy.deepcopy(req.grasp.pose)
+        lift_pose.position.z += 0.20
+
+        # ---------------- Compute dropoff pose
+        drop_pose = lift_pose
+        drop_pose.orientation.x = 1
+        drop_pose.orientation.y = 0
+        drop_pose.orientation.z = 0
+        drop_pose.orientation.w = 0
+
+        drop_pose.position.x = 0.45
+        drop_pose.position.y = -0.5
+        drop_pose.position.z = 0.4
+
+        # If just testing, return such result
+        if req.plan_only:
+            goals = [pregrasp_pose, lift_pose, drop_pose]
+            return self.check_trajectory_feasibility(goals)
+
+        # Move fingers in pre grasp pose
+        # self.command_gripper(req.width.data)
+        self.open_gripper()
 
         if not self.go_home(use_joints=True):
             return False
@@ -704,7 +764,7 @@ class PandaActionServer(object):
             approach_constraints.orientation_constraints.append(orient_constraint)
 
             # Re-attempt with the flipped pose
-            if not self.execute_trajectory(approach_waypoints):
+            if not self.execute_trajectory(approach_waypoints, approach_constraints):
                 rospy.logwarn("Replanning failed. Grasp pose is unreachable.")
                 self.go_home(use_joints=True)
                 return False
@@ -724,9 +784,6 @@ class PandaActionServer(object):
         if not self.go_to_pose(pregrasp_pose, message="Moving back from grasping pose"):
             return False
 
-        lift_pose = copy.deepcopy(req.grasp.pose)
-        lift_pose.position.z += 0.20
-
         if not self.go_to_pose(lift_pose, message="Lifting from grasping pose"):
             return False
 
@@ -741,17 +798,8 @@ class PandaActionServer(object):
             self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
 
         # Move object out of workspace
-        next_pose = lift_pose
-        next_pose.orientation.x = 1
-        next_pose.orientation.y = 0
-        next_pose.orientation.z = 0
-        next_pose.orientation.w = 0
 
-        next_pose.position.x = 0.45
-        next_pose.position.y = -0.5
-        next_pose.position.z = 0.4
-
-        if not self.go_to_pose(next_pose, message="Dropping object away from workspace"):
+        if not self.go_to_pose(drop_pose, message="Dropping object away from workspace"):
             return False
 
         self.open_gripper()
