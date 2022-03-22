@@ -594,7 +594,7 @@ class PandaActionServer(object):
             # Return if any part of the plan is not feasible
             if not current_plan.joint_trajectory.points:
                 self._move_group.clear_pose_targets()
-                self._move_group.set_start_state(robot_initial_state)
+                self._move_group.set_start_state_to_current_state()
                 return False
 
             # If a plan is feasible, set final goal of previous plan a current state
@@ -605,7 +605,7 @@ class PandaActionServer(object):
 
         # If we got this far, the whole thing is feasible
         self._move_group.clear_pose_targets()
-        self._move_group.set_start_state(robot_initial_state)
+        self._move_group.set_start_state_to_current_state()
         return True
 
     def do_grasp_callback(self, req):
