@@ -265,7 +265,7 @@ class GRASPAResult(object):
             collision_filename_field.text = os.path.join('data/objects/YCB', self._object_name, 'nontextured.stl')
 
             graspset_field = ET.SubElement(manip_object_field, 'GraspSet')
-            graspset_field.set('name', 'Benchmark_Layout_X')
+            graspset_field.set('name', 'Benchmark_Layout_' + str(self._layout))
             graspset_field.set('RobotType', 'Panda')
             graspset_field.set('EndEffector', 'Panda Hand')
 
