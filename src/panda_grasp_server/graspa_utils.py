@@ -76,7 +76,7 @@ def save_GRASPA_grasp(grasp_save_path, grasp_pose, graspa_board_pose=None):
             rospy.set_param("~ops_params/current_obj", current_object)
 
         # Check if path exists, otherwise create it
-        full_graspa_save_path = os.path.join(grasp_save_path, current_alg, current_layout)
+        full_graspa_save_path = os.path.join(grasp_save_path, current_alg, "grasps_data", "layout_" + str(current_layout))
         if not (os.path.isdir(full_graspa_save_path)):
             rospy.loginfo("Creating directory {}".format(full_graspa_save_path))
             os.makedirs(full_graspa_save_path)
