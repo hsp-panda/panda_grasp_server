@@ -654,7 +654,7 @@ class PandaActionServer(object):
         lift_pose.position.z += 0.20
 
         # ---------------- Compute dropoff pose
-        drop_pose = lift_pose
+        drop_pose = copy.deepcopy(req.grasp.pose)
         drop_pose.orientation.x = 1
         drop_pose.orientation.y = 0
         drop_pose.orientation.z = 0
@@ -807,10 +807,13 @@ class PandaActionServer(object):
         self.go_home(use_joints=True)
 
         if self._save_grasp:
-            # Save the grasp
-            save = raw_input("Save grasp? [y/N]")
-            if save.lower() == 'y':
-                graspa_utils.save_GRASPA_grasp(self._grasp_save_path, req.grasp, graspa_board_pose)
+            if graspa_board_pose:
+                # Save the grasp
+                save = raw_input("Save grasp? [y/N]")
+                if save.lower() == 'y':
+                    graspa_utils.save_GRASPA_grasp(self._grasp_save_path, req.grasp, graspa_board_pose)
+            else:
+                rospy.logwarn("Grasp will not be saved since GRASPA board was not detected in the scene")
 
         return grasp_success
 

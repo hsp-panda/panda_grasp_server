@@ -34,7 +34,7 @@ def get_GRASPA_board_pose(tf_listener, base_frame = 'panda_link0', board_frame =
 
     if not (tf_listener.frameExists(base_frame) and tf_listener.frameExists(board_frame)):
         rospy.logerr("Either tf transform {} or {} do not exist".format(base_frame, board_frame))
-        return PoseStamped()
+        return None
 
     tf_listener.waitForTransform(base_frame, board_frame, rospy.Time.now(), rospy.Duration(5.0))
     last_heard_time = tf_listener.getLatestCommonTime(base_frame, board_frame)
