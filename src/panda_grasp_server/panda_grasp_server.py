@@ -62,6 +62,20 @@ class NodeConfig(object):
         self._set_scaling_factor_service_name = rospy.get_param("~service_names/panda_set_scaling_factors_service", "~panda_set_scaling_factors")
         self._recover_service_name = rospy.get_param("~service_names/panda_error_recover_service", "~panda_error_recover")
 
+        # Configure robot homing poses
+        home_position = rospy.get_param("~home_config/position", [0.5, 0.0, 0.5])
+        home_orientation = rospy.get_param("~home_config/orientation", [1.0, 0.0, 0.0, 0.0]) # quaternion, xyzw format
+        self._home_configs = {}
+        self._home_configs['home_joints'] = rospy.get_param("~home_config/joints", [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0])
+        self._home_configs['home_pose'] = geometry_msgs.msg.Pose()
+        self._home_configs['home_pose'].position.x = home_position[0]
+        self._home_configs['home_pose'].position.y = home_position[1]
+        self._home_configs['home_pose'].position.z = home_position[2]
+        self._home_configs['home_pose'].orientation.x = home_orientation[0]
+        self._home_configs['home_pose'].orientation.y = home_orientation[1]
+        self._home_configs['home_pose'].orientation.z = home_orientation[2]
+        self._home_configs['home_pose'].orientation.w = home_orientation[3]
+
         # Configure scene parameters
         self._table_height = rospy.get_param("~workspace/table_height", 0.13) # z distance from upper side of the table block, from the robot base ref frame
         self._table_size = rospy.get_param("~workspace/table_size", (1.0, 2.0, 0.8)) # x y z size of table block
@@ -201,32 +215,16 @@ class PandaActionServer(object):
         self._tf_listener = tf.TransformListener(True, rospy.Duration(10))
 
         # Configure home pose
-        self._home_pose = geometry_msgs.msg.Pose()
-
-        self._home_pose.orientation.x = 1.0
-        self._home_pose.orientation.y = 0.0
-        self._home_pose.orientation.z = 0.0
-        self._home_pose.orientation.w = 0.0
-
-        self._home_pose.position.x = 0.5
-        self._home_pose.position.y = 0.0
-        self._home_pose.position.z = 0.6
+        self._home_pose = config._home_configs['home_pose']
 
         # Alternative home pose in joint values
         # This home pose is the same defined in the moveit package
         self._home_pose_joints = self._move_group.get_current_joint_values()
-        self._home_pose_joints[0:7] = [0.0,
-                                       0.0,
-                                       0.0,
-                                       -math.pi/2,
-                                       0.0,
-                                       math.pi/2,
-                                       0.0]
-
+        self._home_pose_joints[0:7] = config._home_configs['home_joints']
 
         # Add table as a collision object
         if config._table_height is not None:
-            rospy.sleep(2)
+            rospy.sleep(1)
             table_pose = geometry_msgs.msg.PoseStamped()
             table_pose.header.frame_id = self._robot.get_planning_frame()
             table_pose.pose.position.x = 0.2 + config._table_size[0]/2
@@ -235,7 +233,7 @@ class PandaActionServer(object):
             self._scene.add_box("table", table_pose, config._table_size)
 
         # Add the workbench
-        rospy.sleep(2)
+        rospy.sleep(1)
         workbench_pose = geometry_msgs.msg.PoseStamped()
         workbench_pose.header.frame_id = self._robot.get_planning_frame()
         workbench_pose.pose.position.x = -config._bench_mount_point_xy[0]
