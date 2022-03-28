@@ -791,16 +791,27 @@ class PandaActionServer(object):
         # rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
         # rospy.loginfo("Grasp success? " + str(grasp_success))
 
+        # Add a collision volume to the end effector, to make sure
+        # whatever object is being carried does not bump into the table or anything else
+        attached_object_pose = geometry_msgs.msg.PoseStamped()
+        attached_object_pose.header.frame_id = self._eef_link
+        attached_object_pose.pose.orientation.w = 1.0
+        attached_object_pose.pose.position.z = 0.1
+        self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2], touch_links=['panda_hand', 'panda_rightfinger', 'panda_leftfinger'])
+
         # Check stability
         if self._enable_graspa_stab_motion:
             self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
 
         # Move object out of workspace
-
         if not self.go_to_pose(drop_pose, message="Dropping object away from workspace"):
             return False
 
         self.open_gripper()
+
+        # Let go of the collision box
+        self._scene.remove_attached_object('panda_tcp', 'attached_object')
+        self._scene.remove_world_object('attached_object')
 
         self.go_home(use_joints=True)
 
