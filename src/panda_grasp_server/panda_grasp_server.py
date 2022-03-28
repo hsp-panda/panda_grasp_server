@@ -18,7 +18,6 @@ import tf
 import rospkg
 import graspa_utils
 
-
 from panda_ros_common.msg import PandaState
 from panda_ros_common.srv import (PandaGrasp, PandaGraspRequest, PandaGraspResponse,
                                     UserCmd,
@@ -797,7 +796,17 @@ class PandaActionServer(object):
         attached_object_pose.header.frame_id = self._eef_link
         attached_object_pose.pose.orientation.w = 1.0
         attached_object_pose.pose.position.z = 0.1
-        self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2], touch_links=['panda_hand', 'panda_rightfinger', 'panda_leftfinger'])
+        if isinstance(self._gripper, grippers.FrankaHandGripper):
+            self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2],
+                                   touch_links=['panda_hand', 'panda_rightfinger', 'panda_leftfinger'])
+        elif isinstance(self._gripper, (grippers.Robotiq2FGripper, grippers.Robotiq2FGripperForceControlled)):
+            self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2],
+                                   touch_links=['left_inner_finger', 'right_inner_finger',
+                                                'left_inner_finger_pad', 'right_inner_finger_pad',
+                                                'left_inner_knuckle', 'right_inner_knuckle',
+                                                'left_outer_finger', 'right_outer_finger',
+                                                'left_outer_knuckle', 'right_outer_knuckle',
+                                                'robotiq_arg2f_base_link'])
 
         # Check stability
         if self._enable_graspa_stab_motion:
