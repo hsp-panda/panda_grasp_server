@@ -14,7 +14,8 @@ service_names/panda_error_recover_service         : "~panda_error_recover"
 # Robot home poses
 home_config/position          : [0.5, 0.0, 0.6]
 home_config/orientation       : [1.0, 0.0, 0.0, 0.0] # quaternion in xyzw order
-home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0] # robot has 7 joints
+home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.7854] # for the Franka Hand
+# home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0] # for any other gripper
 
 # Configure scene parameters
 workspace/table_height      : 0.13 # z distance from upper side of the table block, from the robot base ref frame
