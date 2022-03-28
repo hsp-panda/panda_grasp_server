@@ -11,12 +11,16 @@ service_names/panda_get_state_service             : "~panda_get_state"
 service_names/panda_set_scaling_factors_service   : "~panda_set_scaling_factors"
 service_names/panda_error_recover_service         : "~panda_error_recover"
 
+# Robot home poses
+home_config/position          : [0.5, 0.0, 0.6]
+home_config/orientation       : [1.0, 0.0, 0.0, 0.0] # quaternion in xyzw order
+home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0] # robot has 7 joints
+
 # Configure scene parameters
 workspace/table_height      : 0.13 # z distance from upper side of the table block, from the robot base ref frame
 workspace/table_size        : [1.0, 2.0, 0.8] # x y z size of table block
 workspace/bench_size        : [0.6, 0.6, 0.6] # x y z
 workspace/bench_mount_xy    : [0.1, 0.0] # x y wrt center of the bench
-
 
 planning/max_vel_scaling_factor     : 0.3 # Configure speed/acceleration in planning
 planning/max_acc_scaling_factor     : 0.3
