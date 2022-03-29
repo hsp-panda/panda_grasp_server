@@ -820,6 +820,8 @@ class PandaActionServer(object):
 
         # Let go of the collision box
         self._scene.remove_attached_object('panda_tcp', 'attached_object')
+        while len(self._scene.get_attached_objects(['attached_object']).keys()):
+            rospy.sleep(0.1)
         self._scene.remove_world_object('attached_object')
 
         self.go_home(use_joints=True)
