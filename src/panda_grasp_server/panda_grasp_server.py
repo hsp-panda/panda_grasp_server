@@ -648,7 +648,7 @@ class PandaActionServer(object):
 
         # ---------------- Compute lift pose
         lift_pose = copy.deepcopy(req.grasp.pose)
-        lift_pose.position.z += 0.20
+        lift_pose.position.z += 0.15
 
         # ---------------- Compute dropoff pose
         drop_pose = copy.deepcopy(req.grasp.pose)
@@ -785,6 +785,7 @@ class PandaActionServer(object):
             return False
 
         # Check if grasp was successful
+        #TODO: use external measured forces to estimate whether the object was grasped or not
         # gripper_state = self.get_gripper_state()
         # grasp_success = False if sum(gripper_state) <= 0.01 else True
         # rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
@@ -810,6 +811,9 @@ class PandaActionServer(object):
 
         # Check stability
         if self._enable_graspa_stab_motion:
+            rospy.loginfo("Measuring lift stability")
+            rospy.sleep(5)
+            rospy.loginfo("Measuring grasp stability")
             self.evaluate_stability(lift_pose, [0.3, -0.3, 0.5])
 
         # Move object out of workspace
@@ -903,34 +907,25 @@ class PandaActionServer(object):
         wp_4 = numpy_to_pose(bin_rot_negative_pose)
         wp_start = numpy_to_pose(evaluation_center_pose)
 
-        # Create waypoint list
+        # Create waypoint list (strictly GRASPA waypoints)
         waypoints = [wp_start,
                      wp_1,
                      wp_start,
                      wp_2,
                      wp_start,
                      wp_3,
-                     wp_start,
-                     wp_4,
                      wp_start]
 
-        # Move the robot
+        # Add another stability movement for the sake of completion (not GRASPA compliant)
+        # waypoints.append(wp_4)
+        # waypoints.append(wp_start)
+
+        # Move the robot in a continuous trajectory
         # motion_success = self.execute_trajectory(waypoints)
 
-        # self._move_group.set_pose_targets(waypoints)
-        # self._move_group.go()
-
+        # Plan and perform each stability motion separately
         for wp in waypoints:
             self.go_to_pose(wp)
-        # self.go_to_pose(wp_start)
-        # self.go_to_pose(wp_1)
-        # self.go_to_pose(wp_start)
-        # self.go_to_pose(wp_2)
-        # self.go_to_pose(wp_start)
-        # self.go_to_pose(wp_3)
-        # self.go_to_pose(wp_start)
-        # self.go_to_pose(wp_4)
-        # self.go_to_pose(wp_start)
 
         return True
 
