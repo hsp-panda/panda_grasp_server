@@ -783,6 +783,7 @@ class PandaActionServer(object):
 
         if not self.go_to_pose(lift_pose, message="Lifting from grasping pose"):
             return False
+        rospy.sleep(5)
 
         # Check if grasp was successful
         #TODO: use external measured forces to estimate whether the object was grasped or not
