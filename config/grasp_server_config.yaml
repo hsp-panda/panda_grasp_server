@@ -14,11 +14,15 @@ service_names/panda_error_recover_service         : "~panda_error_recover"
 # Robot home poses
 home_config/position          : [0.5, 0.0, 0.6]
 home_config/orientation       : [1.0, 0.0, 0.0, 0.0] # quaternion in xyzw order
-home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.7854] # for the Franka Hand
+#home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.7854] # for the Franka Hand
+#home_config/joints            : [-0.00017951131921686362, 0.12434213686512227, -3.5151016713801156e-06, -1.1971260271909108, 0.0006115491391780475, 1.3197692082060708, 0.785112455396164] # experiment graspnetlayout 0 -1 - 2
+#home_config/joints            : [-1.3992892174028115, 0.2857270969437219, -0.37703810153654477, -1.6839571496289902, 0.7241969012808822, 1.004313010701706, -1.7066759362299904] # experiment graspnet 45 deg
+#home_config/joints            : [-0.02091028753811853, -0.12654936969698521, -0.09920145248739343, -1.2693474703838952, 0.0452607549692531, 1.2497517126890425, 0.6793222027106418] # experiment graspnet for paper topdown
+home_config/joints            : [-0.00201413696721775, -1.1316679735351531, 0.009199178239083613, -2.3369557367780267, 0.006756024039099414, 1.6845632224877785, 0.7889864219311211] # experiment graspnet for paper pose2
 # home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0] # for any other gripper
 
 # Configure scene parameters
-workspace/table_height      : 0.13 # z distance from upper side of the table block, from the robot base ref frame
+workspace/table_height      : 0.05 # z distance from upper side of the table block, from the robot base ref frame
 workspace/table_size        : [1.0, 2.0, 0.8] # x y z size of table block
 workspace/bench_size        : [0.6, 0.6, 0.6] # x y z
 workspace/bench_mount_xy    : [0.1, 0.0] # x y wrt center of the bench
@@ -35,7 +39,7 @@ planning/publish_rviz               : True # Weather to visualize trajectories
 # ROBOTIQ_2F_FC
 gripper/gripper_type                : "FRANKA_HAND"
 
-ops_params/enable_force_grasp         : False # Enable force-based grasping
-ops_params/enable_graspa_stab_motion  : False # Enable graspa stability motion after grasping
-ops_params/enable_graspa_save_grasp   : False # Enable saving grasps in graspa-format
-ops_params/grasp_save_path            : "dumped_grasps"
+ops_params/enable_force_grasp         : True # Enable force-based grasping
+ops_params/enable_graspa_stab_motion  : True # Enable graspa stability motion after grasping
+ops_params/enable_graspa_save_grasp   : True # Enable saving grasps in graspa-format
+ops_params/grasp_save_path            : "/home/panda-admin/Documents"
