@@ -64,6 +64,9 @@
   <depend>actionlib_msgs</depend>
   <depend>panda_moveit_config</depend>
   <depend>moveit_simple_controller_manager</depend>
+  <depend>moveit_commander</depend>
+  <depend>joint_trajectory_controller</depend>
+  <depend>rospy_message_converter</depend>
   <depend>pyquaternion</depend>
 
   <!-- <build_depend>geometry_msgs</build_depend>
