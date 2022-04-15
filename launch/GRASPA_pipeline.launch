@@ -1,0 +1,46 @@
+<launch>
+
+    <arg name="robot_ip"                                default="172.16.0.2" />
+    <arg name="table_height"                            default="0.0" />
+    <arg name="start_realsense"                         default="true" />
+    <arg name="pc_segmentation"                         default="true" />
+    <arg name="camera_width"                            default="640" />
+    <arg name="camera_height"                           default="480" />
+    <arg name="camera_fps"                              default="15" />
+
+    <!-- Start robot controllers, moveit and rviz -->
+    <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch" >
+        <arg name="load_gripper"                    value="true" />
+        <arg name="robot_ip"                        value="$(arg robot_ip)" />
+        <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
+    </include>
+
+    <!-- Start realsense, if necessary -->
+    <include file="$(find realsense2_camera)/launch/rs_rgbd.launch" if="$(arg start_realsense)">
+        <arg name="align_depth"                         value="true" />
+        <arg name="depth_registered_processing"         value="true" />
+        <arg name="filters"                             value="hole_filling, pointcloud" />
+        <arg name="depth_width"                         value="$(arg camera_width)" />
+        <arg name="depth_height"                        value="$(arg camera_height)" />
+        <arg name="depth_fps"                           value="$(arg camera_fps)" />
+        <arg name="color_width"                         value="$(arg camera_width)" />
+        <arg name="color_height"                        value="$(arg camera_height)" />
+        <arg name="color_fps"                           value="$(arg camera_fps)" />
+    </include>
+
+    <!-- Start the PC segmentation node if necessary -->
+    <!-- Segmentation parameters will have to be changed through rosparam at runtime -->
+    <remap from="/input_cloud" to="/camera/depth/color/points" />
+    <node name="tabletop_segment" pkg="tabletop_segment" type="tabletop_segment_node" if="$(arg pc_segmentation)" />
+
+    <!-- Start the aruco board detection node -->
+    <include file="$(find aruco_board_detect)/launch/aruco_board_detect.launch" >
+        <arg name="publish_single_markers"              value="true" />
+        <arg name="detection_rate"                      value="0.2" />
+    </include>
+
+    <!-- Start the grasp and movement server node -->
+    <rosparam command="load" file="$(find panda_grasp_server)/config/grasp_server_config.yaml" ns="panda_grasp_server" />
+    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen" />
+
+</launch>
