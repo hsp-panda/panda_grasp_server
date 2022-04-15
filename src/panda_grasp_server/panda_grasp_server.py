@@ -41,9 +41,7 @@ class NodeConfig(object):
     # Ugly but necessary dictionary container class
     # Translates string into class handle
     gripper_types = {
-        "FRANKA_HAND"       : grippers.FrankaHandGripper,
-        "ROBOTIQ_2F"        : grippers.Robotiq2FGripper,
-        "ROBOTIQ_2F_FC"     : grippers.Robotiq2FGripperForceControlled
+        "FRANKA_HAND"       : grippers.FrankaHandGripper
     }
 
     def __init__(self):
@@ -801,14 +799,9 @@ class PandaActionServer(object):
         if isinstance(self._gripper, grippers.FrankaHandGripper):
             self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2],
                                    touch_links=['panda_hand', 'panda_rightfinger', 'panda_leftfinger'])
-        elif isinstance(self._gripper, (grippers.Robotiq2FGripper, grippers.Robotiq2FGripperForceControlled)):
+        else:
             self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2],
-                                   touch_links=['left_inner_finger', 'right_inner_finger',
-                                                'left_inner_finger_pad', 'right_inner_finger_pad',
-                                                'left_inner_knuckle', 'right_inner_knuckle',
-                                                'left_outer_finger', 'right_outer_finger',
-                                                'left_outer_knuckle', 'right_outer_knuckle',
-                                                'robotiq_arg2f_base_link'])
+                                   touch_links=['panda_link8', 'panda_link7'])
 
         # Check stability
         if self._enable_graspa_stab_motion:
