@@ -1,0 +1,40 @@
+# Configure service names
+service_names/user_cmd_service                    : "~user_cmd"
+service_names/panda_move_pose_service             : "~panda_move_pose"
+service_names/panda_grasp_service                 : "~panda_grasp"
+service_names/panda_home_service                  : "~panda_home"
+service_names/panda_move_wp_service               : "~panda_move_wp"
+service_names/panda_set_home_pose_service         : "~panda_set_home_pose"
+service_names/panda_stop_service                  : "~panda_stop"
+service_names/panda_gripper_cmd_service           : "~panda_gripper_cmd"
+service_names/panda_get_state_service             : "~panda_get_state"
+service_names/panda_set_scaling_factors_service   : "~panda_set_scaling_factors"
+service_names/panda_error_recover_service         : "~panda_error_recover"
+
+# Robot home poses
+home_config/position          : [0.5, 0.0, 0.7]
+home_config/orientation       : [1.0, 0.0, 0.0, 0.0] # quaternion in xyzw order
+home_config/joints            : [-0.11899186470606302, 0.19508951544466327, 0.16070551717281342, -0.7810808577788521, -0.03693424248492326, 0.9725300767315923, 0.8035825639052523]
+
+# Configure scene parameters
+workspace/table_height      : 0.0 # z distance from upper side of the table block, from the robot base ref frame
+workspace/table_size        : [1.0, 2.0, 0.8] # x y z size of table block
+workspace/bench_size        : [0.6, 0.6, 0.6] # x y z
+workspace/bench_mount_xy    : [0.1, 0.0] # x y wrt center of the bench
+
+planning/max_vel_scaling_factor     : 0.3 # Configure speed/acceleration in planning
+planning/max_acc_scaling_factor     : 0.3
+planning/planner_id                 : "RRTkConfigDefault" # Configure default planner id
+planning/eef_link_id                : "panda_tcp" # end effector to use in the move group
+planning/publish_rviz               : True # Weather to visualize trajectories
+
+# Choose gripper type
+# FRANKA_HAND
+# ROBOTIQ_2F
+# ROBOTIQ_2F_FC
+gripper/gripper_type                : "FRANKA_HAND"
+
+ops_params/enable_force_grasp         : True # Enable force-based grasping
+ops_params/enable_graspa_stab_motion  : True # Enable graspa stability motion after grasping
+ops_params/enable_graspa_save_grasp   : True # Enable saving grasps in graspa-format
+ops_params/grasp_save_path            : "saved_grasps"
