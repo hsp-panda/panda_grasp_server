@@ -42,4 +42,4 @@ gripper/gripper_type                : "FRANKA_HAND"
 ops_params/enable_force_grasp         : True # Enable force-based grasping
 ops_params/enable_graspa_stab_motion  : True # Enable graspa stability motion after grasping
 ops_params/enable_graspa_save_grasp   : True # Enable saving grasps in graspa-format
-ops_params/grasp_save_path            : "/home/panda-admin/Documents"
+ops_params/grasp_save_path            : "saved_grasps"
