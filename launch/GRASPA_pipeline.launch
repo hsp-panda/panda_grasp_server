@@ -7,6 +7,7 @@
     <arg name="camera_width"                            default="640" />
     <arg name="camera_height"                           default="480" />
     <arg name="camera_fps"                              default="15" />
+    <arg name="rviz_config"                             default="rviz.rviz" />
 
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch" >
