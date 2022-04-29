@@ -4,12 +4,13 @@
     <arg name="gripper_type"                            default="FRANKA_HAND"
                                                         doc="FRANKA_HAND, ROBOTIQ_2F or ROBOTIQ_2F_FC" />
     <arg name="robot_ip"                                default="172.16.0.2" />
-    <arg name="table_height"                            default="0.12" />
+    <arg name="table_height"                            default="" doc="Unset, if present will override the grasp_server_config YAML"/>
     <arg name="start_realsense"                         default="true" />
     <arg name="rviz_config"                             default="rviz.rviz" />
     <arg name="enable_force_grasp"                      default="false" />
     <arg name="moveit_use_bio_ik"                       default="false" />
     <arg name="enable_graspa_stab_motion"               default="false" />
+    <arg name="grasp_server_config"                     default="grasp_server_config.yaml" />
 
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch" if="$(eval (arg('gripper_type') == 'FRANKA_HAND') or (arg('load_gripper') == 'false'))" >
@@ -43,7 +44,8 @@
     </include>
 
     <!-- Start the grasp and movement server node -->
-    <rosparam command="load" file="$(find panda_grasp_server)/config/grasp_server_config.yaml" ns="panda_grasp_server" />
+    <rosparam command="load" file="$(find panda_grasp_server)/config/$(arg grasp_server_config)" ns="panda_grasp_server" />
+    <param name="/panda_grasp_server/workspace/table_height" type="double" value="$(arg table_height)" unless="$(eval table_height == '')" />
     <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen">
         <!-- <param name="gripper/gripper_type"              value="$(arg gripper_type)" /> -->
         <!-- <param name="workspace/table_height"            value="$(arg table_height)" /> -->
