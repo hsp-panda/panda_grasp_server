@@ -326,6 +326,9 @@ class PandaActionServer(object):
 
         return self._gripper.open_gripper()
 
+    def home_gripper(self):
+        return self._gripper.home_gripper()
+
     def command_gripper(self, gripper_width, velocity=0.1):
 
         # This command just moves the fingers. Actual gripper behaviour
