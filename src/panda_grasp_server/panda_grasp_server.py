@@ -667,11 +667,7 @@ class PandaActionServer(object):
             goals = [pregrasp_pose, lift_pose, drop_pose]
             return self.check_trajectory_feasibility(goals)
 
-        # Move fingers in pre grasp pose
-        # self.command_gripper(req.width.data)
-        self.open_gripper()
-
-        if not self.go_home(use_joints=True):
+        if not self.go_home(use_joints=True, home_gripper=True):
             return False
 
         # We acquire the board pose, if needed, before moving the robot
@@ -682,6 +678,10 @@ class PandaActionServer(object):
 
         if not self.go_to_pose(pregrasp_pose, "Moving to pregrasp pose"):
             return False
+
+        # Move fingers in pre grasp pose
+        # self.command_gripper(req.width.data)
+        self.open_gripper()
 
         approach_waypoints = []
         n_approach_waypoints = 10
