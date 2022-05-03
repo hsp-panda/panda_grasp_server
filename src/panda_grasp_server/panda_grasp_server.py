@@ -303,7 +303,7 @@ class PandaActionServer(object):
         else:
             return False
 
-    def go_home(self, use_joints=False, home_gripper=True):
+    def go_home(self, use_joints=False, home_gripper=False):
 
         # Move the robot in home pose
         # use_joints flag uses the joint config instead of pose
@@ -316,7 +316,7 @@ class PandaActionServer(object):
         self._move_group.clear_pose_targets()
 
         if home_gripper:
-            self.open_gripper()
+            self.home_gripper()
 
         return True
 
