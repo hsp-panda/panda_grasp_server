@@ -564,7 +564,7 @@ class PandaActionServer(object):
         # Different behaviour according to the enable_force_grasp flag
         if self._enable_force_grasp:
 
-            grasp_result = self._gripper.grasp_motion(width, velocity, force)
+            grasp_result = self._gripper.grasp_motion(0.0, velocity, force)
 
         else:
 
