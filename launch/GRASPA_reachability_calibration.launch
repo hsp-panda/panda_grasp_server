@@ -1,0 +1,53 @@
+<launch>
+
+    <arg name="robot_ip"                                default="172.16.0.2" />
+    <arg name="table_height"                            default="" doc="Unset, if present will override the grasp_server_config YAML"/>
+    <arg name="camera_width"                            default="640" />
+    <arg name="camera_height"                           default="480" />
+    <arg name="camera_fps"                              default="15" />
+    <arg name="rviz_config"                             default="rviz.rviz" />
+    <arg name="grasp_server_config"                     default="grasp_server_config.yaml" />
+    <arg name="hand_camera_serial"                      doc="Serial number of the hand-mounted camera" />
+    <arg name="setup_camera_serial"                     doc="Serial number of the setup-mounted camera" />
+
+
+    <!-- Start hand-mounted realsense -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+        <arg name="camera"                              value="hand_camera" />
+        <arg name="tf_prefix"                           value="hand_camera" />
+        <arg name="serial_no"                           value="$(arg hand_camera_serial)" />
+        <arg name="enable_depth"                        value="false" />
+        <arg name="color_width"                         value="$(arg camera_width)" />
+        <arg name="color_height"                        value="$(arg camera_height)" />
+        <arg name="color_fps"                           value="$(arg camera_fps)" />
+    </include>
+
+    <!-- Start setup-mounted realsense -->
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
+        <arg name="camera"                              value="setup_camera" />
+        <arg name="tf_prefix"                           value="setup_camera" />
+        <arg name="serial_no"                           value="$(arg setup_camera_serial)" />
+        <arg name="enable_depth"                        value="false" />
+        <arg name="color_width"                         value="$(arg camera_width)" />
+        <arg name="color_height"                        value="$(arg camera_height)" />
+        <arg name="color_fps"                           value="$(arg camera_fps)" />
+    </include>
+
+    <!-- Start multiplexer nodes -->
+    <node name="camera_info_mux" pkg="topic_tools" type="mux" args="camera/color/camera_info hand_camera/color/camera_info setup_camera/color/camera_info mux:=camera_info_mux" />
+    <node name="camera_image_mux" pkg="topic_tools" type="mux" args="camera/color/image_raw hand_camera/color/image_raw setup_camera/color/image_raw mux:=camera_image_mux" />
+
+    <!-- Switch camera with
+    rosservice call /camera_info_mux/select "topic: '/setup_camera/color/camera_info'"
+    rosservice call /camera_image_mux/select "topic: '/setup_camera/color/image_raw'"
+    -->
+
+    <!-- Start the aruco board detection node -->
+    <include file="$(find aruco_board_detect)/launch/aruco_board_detect.launch" >
+        <arg name="camera_info_topic"                   value="/camera/color/camera_info" />
+        <arg name="camera_image_topic"                  value="/camera/color/image_raw" />
+        <arg name="publish_single_markers"              value="true" />
+        <arg name="detection_rate"                      value="0.5" />
+    </include>
+
+</launch>
