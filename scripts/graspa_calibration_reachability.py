@@ -18,6 +18,7 @@ from panda_ros_common.srv import PandaHome, PandaHomeRequest
 from panda_ros_common.srv import PandaGetState
 from panda_ros_common.srv import PandaMoveWaypoints, PandaMoveWaypointsRequest
 from panda_ros_common.srv import PandaSetHome, PandaSetHomeRequest
+from topic_tools.srv import MuxSelect
 from aruco_board_detect.msg import MarkerList
 
 import pyquaternion as pq
@@ -28,12 +29,18 @@ from xml.etree import ElementTree as ET
 from xml.dom import minidom
 import copy
 
+# Globals
 tcp_pose = None
 tcp_pose_lock = Lock()
 
 BOARD_FRAME_NAME = "graspa_board"
 ROOT_FRAME_NAME = "panda_link0"
 CAMERA_FRAME_NAME = "camera_link"
+HAND_CAMERA_FRAME_NAME = "camera_link"
+SETUP_CAMERA_FRAME_NAME = "setup_camera"
+SETUP_CAMERA_NAME = "setup_camera"
+TCP_MARKERS_LIST = [42, 43, 44]
+TCP_MARKER_OFFSET = [0.0, 0.0, 0.035]
 
 tf_listener = None
 tf_broadcaster = None
@@ -211,6 +218,29 @@ def add_outcome(stamped_pose, parent, frame_name):
             row2.set('c'+str(col_idx+1), str(pose_rotation[1,col_idx]))
             row3.set('c'+str(col_idx+1), str(pose_rotation[2,col_idx]))
             row4.set('c'+str(col_idx+1), str(0))
+
+def switch_camera_input(new_camera_name):
+
+    # Use services to act on the camera multiplexers
+    rospy.loginfo("Switching current camera input to {}".format(new_camera_name))
+    rospy.wait_for_service("/camera_info_mux/select")
+    camera_info_mux = rospy.ServiceProxy("/camera_info_mux/select", MuxSelect)
+    rospy.wait_for_service("/camera_image_mux/select")
+    camera_image_mux = rospy.ServiceProxy("/camera_image_mux/select", MuxSelect)
+
+    # Switch camera info
+    req = MuxSelect()
+    req.topic = "/" + SETUP_CAMERA_NAME + "/color/camera_info"
+    res = camera_info_mux(req)
+
+    # Switch camera image
+    req = MuxSelect()
+    req.topic = "/" + SETUP_CAMERA_NAME + "/color/image_raw"
+    res = camera_image_mux(req)
+
+    rospy.info("Switched camera input")
+
+    return
 
 if __name__ == "__main__":
 
