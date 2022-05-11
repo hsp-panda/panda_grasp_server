@@ -246,39 +246,42 @@ if __name__ == "__main__":
 
     rospy.init_node("graspa_reachability_calibration")
 
+    # Set up TF listener and broadcaster
     tf_listener = tf.TransformListener(True, rospy.Duration(10))
     tf_broadcaster = tf.TransformBroadcaster()
     tf_static_broadcaster = tf.StaticTransformBroadcaster()
 
-    rospy.wait_for_service('panda_grasp_server/panda_move_pose')
+    # Set up services to move the robot and retrieve status
+    rospy.loginfo("Setting up service proxies to panda_grasp_server")
+    rospy.wait_for_service('panda_grasp_server/panda_move_wp') #TODO is this the right one?
     move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_wp', PandaMoveWaypoints)
+    rospy.wait_for_service('panda_grasp_server/panda_get_state')
     get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
-
     rospy.wait_for_service('panda_grasp_server/panda_home')
     move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
+    rospy.loginfo("Service proxies are up")
 
+    # Subscribe to detected markers data topic
     markers_sub = rospy.Subscriber('aruco_board_detector/markers_data', MarkerList, get_tcp_pose)
 
     # Define 3 sets of poses that will be used for both reachability and calibration
-    # These target poses are defined wrt the board reference frame
+    # Poses in each set share the same orientation
+    # Sets share the same positions, orientation depending upon which set
+    # These target poses are defined wrt the graspa_board reference frame
 
     # z facing left
-
     rotation_set_1 = pq.Quaternion(0.5, -0.5, -0.5, 0.5) # wxyz
 
     # z facing down
-
     rotation_set_2 = pq.Quaternion(0, 0.7071068, 0.7071068, 0)
 
     # z facing right
-
     rotation_set_3 = pq.Quaternion(0.5, 0.5, 0.5, 0.5)
 
     rotation_per_set = [rotation_set_1, rotation_set_2, rotation_set_3]
 
     # The tcp positions are the same for all the sets
     # Create a 4x4 grid of poses with the same order as in GRASPA
-
     x_space = -np.linspace(0, 0.544, 4)
     y_space = np.linspace(0, 0.37, 4)
     x_grid, y_grid = np.meshgrid(x_space, y_space)
@@ -333,14 +336,12 @@ if __name__ == "__main__":
         calibration_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation)+1)))
 
         # Iterate over x and y to obtain poses
-
         for pose_idx_x in range(positions_grid.shape[0]):
             for pose_idx_y in range(positions_grid.shape[1]):
 
                 pose_name = "Reachable_frame{}{}".format(pose_idx_x, pose_idx_y)
 
-                # Create pose wrt graspa board frame
-
+                # Create posestamped wrt graspa board frame
                 pose_graspa = PoseStamped()
                 pose_graspa.header.frame_id = BOARD_FRAME_NAME
                 # pose_graspa.header.stamp = rospy.Time.now()
@@ -353,7 +354,8 @@ if __name__ == "__main__":
                 pose_graspa.pose.orientation.z = set_rotation.z
                 pose_graspa.pose.orientation.w = set_rotation.w
 
-                # Transform pose into robot root, when available
+                # panda_grasp_server accepts poses in the robot ref frame,
+                # so graspa poses will have to be translated
 
                 pose_root = None
                 rate = rospy.Rate(10)
@@ -437,7 +439,6 @@ if __name__ == "__main__":
         move_home(req)
 
         # Save xml
-
         domstring = minidom.parseString(ET.tostring(reachability_scene_root))
         filename = "reached_poses{}.xml".format(format(int(rotation_per_set.index(set_rotation))))
 
