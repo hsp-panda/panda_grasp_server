@@ -8,7 +8,7 @@
 
 
 import rospy
-import tf
+import tf2_ros as tf
 import tf.transformations
 from geometry_msgs.msg import Pose, PoseStamped
 
@@ -248,6 +248,7 @@ if __name__ == "__main__":
 
     tf_listener = tf.TransformListener(True, rospy.Duration(10))
     tf_broadcaster = tf.TransformBroadcaster()
+    tf_static_broadcaster = tf.StaticTransformBroadcaster()
 
     rospy.wait_for_service('panda_grasp_server/panda_move_pose')
     move_to_pose = rospy.ServiceProxy('panda_grasp_server/panda_move_wp', PandaMoveWaypoints)
@@ -285,26 +286,46 @@ if __name__ == "__main__":
     positions_grid = np.dstack((x_grid, y_grid, z_grid))
 
     # Acquire initial pose (joint space)
-
     initial_pose_joints = get_robot_state().robot_state.joints_state
     initial_pose_pose = get_robot_state().robot_state.eef_state
 
     # Set this as home pose
-
+    # TODO might want to home the robot beforehand? Otherwise the robot is assumed to be already in a home-friendly position
     rospy.wait_for_service('panda_grasp_server/panda_set_home_pose')
     set_home_pose = rospy.ServiceProxy('panda_grasp_server/panda_set_home_pose', PandaSetHome)
     req = PandaSetHomeRequest(home_pose=PoseStamped(),
                               home_joints=initial_pose_joints,
                               use_joints=True)
-
     set_home_pose(req)
 
     rospy.loginfo('Initial joint state recorded')
 
+
+    # HERE IS WHERE WE ACQUIRE THE GRASPA BOARD POSE AND
+    # TODO: SWITCH THE CAMERA MULTIPLEXERS
+    # COMPUTE WORLD_T_SETUPCAMERA THROUGH GRASPA_BOARD
+    # PUBLISH WORLD_T_SETUPCAMERA TO TF
+
+    # Compute root_T_board
+    # i.e. board in root ref frame
+    try:
+        tf_listener.waitForTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
+        root_T_board = tf_listener.lookupTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
+    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        rospy.logerror("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
+        return
+
+    # Switch camera streams
+    switch_camera_input(new_camera_name)
+
+    # Fix the root_T_board transform
+    tf_static_broadcaster.sendTransform(root_T_board)
+
     for set_rotation in rotation_per_set:
 
-        # For each rotation of the eef, build a different xml
-
+        # For each rotation of the eef, build a different xml tree
+        # One tree for reachability poses
+        # One tree for calib poses
         reachability_scene_root = ET.Element('Scene')
         reachability_scene_root.set('name', "Set_Poses_{}".format(int(rotation_per_set.index(set_rotation)+1)))
 
