@@ -22,6 +22,10 @@
         <arg name="color_fps"                           value="$(arg camera_fps)" />
     </include>
 
+    <!-- Temporary: fix the hand_camera_link to camera_link -->
+    <!-- TODO: fix namespaces and get rid of this -->
+    <node pkg="tf" type="static_transform_publisher" name="hand_cam_fix" args="0 0 0 0 0 0 camera_link hand_camera_link 100"/>
+
     <!-- Start setup-mounted realsense -->
     <include file="$(find realsense2_camera)/launch/rs_camera.launch" >
         <arg name="camera"                              value="setup_camera" />
@@ -49,5 +53,17 @@
         <arg name="publish_single_markers"              value="true" />
         <arg name="detection_rate"                      value="0.5" />
     </include>
+
+    <!-- Start robot controllers, moveit and rviz -->
+    <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch" >
+        <arg name="load_gripper"                    value="true" />
+        <arg name="robot_ip"                        value="$(arg robot_ip)" />
+        <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
+    </include>
+
+    <!-- Start the grasp and movement server node -->
+    <rosparam command="load" file="$(find panda_grasp_server)/config/$(arg grasp_server_config)" ns="panda_grasp_server" />
+    <param name="/panda_grasp_server/workspace/table_height" type="double" value="$(arg table_height)" unless="$(eval table_height == '')" />
+    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen" />
 
 </launch>
