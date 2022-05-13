@@ -20,8 +20,9 @@
     <!-- Start realsense, if necessary -->
     <include file="$(find realsense2_camera)/launch/rs_rgbd.launch" if="$(arg start_realsense)">
         <arg name="align_depth"                         value="true" />
-        <arg name="depth_registered_processing"         value="true" />
-        <arg name="filters"                             value="hole_filling, pointcloud" />
+        <arg name="depth_registered_processing"         value="false" />
+        <arg name="enable_pointcloud"                   value="true" />
+        <arg name="filters"                             value="hole_filling" />
         <arg name="depth_width"                         value="$(arg camera_width)" />
         <arg name="depth_height"                        value="$(arg camera_height)" />
         <arg name="depth_fps"                           value="$(arg camera_fps)" />
