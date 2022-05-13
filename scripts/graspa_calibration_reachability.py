@@ -8,9 +8,11 @@
 
 
 import rospy
-import tf2_ros as tf
+import tf2_ros as tf2
 import tf.transformations
-from geometry_msgs.msg import Pose, PoseStamped
+import tf.transformations as t
+from geometry_msgs.msg import Pose, PoseStamped, Transform, TransformStamped
+from std_msgs.msg import Header
 
 from panda_ros_common.msg import PandaState
 from panda_ros_common.srv import PandaMove, PandaMoveRequest
@@ -230,15 +232,15 @@ def switch_camera_input(new_camera_name):
 
     # Switch camera info
     req = MuxSelect()
-    req.topic = "/" + SETUP_CAMERA_NAME + "/color/camera_info"
+    req = "/" + SETUP_CAMERA_NAME + "/color/camera_info"
     res = camera_info_mux(req)
 
     # Switch camera image
     req = MuxSelect()
-    req.topic = "/" + SETUP_CAMERA_NAME + "/color/image_raw"
+    req = "/" + SETUP_CAMERA_NAME + "/color/image_raw"
     res = camera_image_mux(req)
 
-    rospy.info("Switched camera input")
+    rospy.loginfo("Switched camera input")
 
     return
 
@@ -249,7 +251,7 @@ if __name__ == "__main__":
     # Set up TF listener and broadcaster
     tf_listener = tf.TransformListener(True, rospy.Duration(10))
     tf_broadcaster = tf.TransformBroadcaster()
-    tf_static_broadcaster = tf.StaticTransformBroadcaster()
+    tf_static_broadcaster = tf2.StaticTransformBroadcaster()
 
     # Set up services to move the robot and retrieve status
     rospy.loginfo("Setting up service proxies to panda_grasp_server")
@@ -303,7 +305,6 @@ if __name__ == "__main__":
 
     rospy.loginfo('Initial joint state recorded')
 
-
     # HERE IS WHERE WE ACQUIRE THE GRASPA BOARD POSE AND
     # TODO: SWITCH THE CAMERA MULTIPLEXERS
     # COMPUTE WORLD_T_SETUPCAMERA THROUGH GRASPA_BOARD
@@ -314,15 +315,49 @@ if __name__ == "__main__":
     try:
         tf_listener.waitForTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
         root_T_board = tf_listener.lookupTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
+        root_T_board_mat = tf_listener.fromTranslationRotation(root_T_board[0], root_T_board[1])
+        # root_T_board_stamped = TransformStamped()
+        # root_T_board_stamped.header = Header(0, rospy.Time.now(), ROOT_FRAME_NAME)
+        # root_T_board_stamped.child_frame_id = BOARD_FRAME_NAME
+        # root_T_board_stamped.transform.translation.x = root_T_board[0][0]
+        # root_T_board_stamped.transform.translation.y = root_T_board[0][1]
+        # root_T_board_stamped.transform.translation.z = root_T_board[0][2]
+        # root_T_board_stamped.transform.rotation.x = root_T_board[1][0]
+        # root_T_board_stamped.transform.rotation.y = root_T_board[1][1]
+        # root_T_board_stamped.transform.rotation.z = root_T_board[1][2]
+        # root_T_board_stamped.transform.rotation.w = root_T_board[1][3]
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
         rospy.logerror("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
-        return
+        # return
 
     # Switch camera streams
-    switch_camera_input(new_camera_name)
+    switch_camera_input(SETUP_CAMERA_NAME)
 
+    # TODO this does not work, we must fix the transform to setup_camera instead
     # Fix the root_T_board transform
-    tf_static_broadcaster.sendTransform(root_T_board)
+    # tf_static_broadcaster.sendTransform(root_T_board_stamped)
+
+    # Get transformation from setup_camera_link to graspa_board
+    tf_listener.waitForTransform('setup_camera_link', BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
+    setup_cam_T_board = tf_listener.lookupTransform('setup_camera_link', BOARD_FRAME_NAME, tf_listener.getLatestCommonTime('setup_camera_link', BOARD_FRAME_NAME))
+
+    setup_cam_T_board_mat = tf_listener.fromTranslationRotation(setup_cam_T_board[0], setup_cam_T_board[1])
+    root_T_setup_cam_mat = t.concatenate_matrices(root_T_board_mat, t.inverse_matrix(setup_cam_T_board_mat))
+
+    root_T_setup_cam_stamped = TransformStamped()
+    root_T_setup_cam_stamped.header = Header(0, rospy.Time.now(), ROOT_FRAME_NAME)
+    root_T_setup_cam_stamped.child_frame_id = 'setup_camera_link'
+    root_T_setup_cam_stamped.transform.translation.x = t.translation_from_matrix(root_T_setup_cam_mat)[0]
+    root_T_setup_cam_stamped.transform.translation.y = t.translation_from_matrix(root_T_setup_cam_mat)[1]
+    root_T_setup_cam_stamped.transform.translation.z = t.translation_from_matrix(root_T_setup_cam_mat)[2]
+    root_T_setup_cam_stamped.transform.rotation.x = t.quaternion_from_matrix(root_T_setup_cam_mat)[0]
+    root_T_setup_cam_stamped.transform.rotation.y = t.quaternion_from_matrix(root_T_setup_cam_mat)[1]
+    root_T_setup_cam_stamped.transform.rotation.z = t.quaternion_from_matrix(root_T_setup_cam_mat)[2]
+    root_T_setup_cam_stamped.transform.rotation.w = t.quaternion_from_matrix(root_T_setup_cam_mat)[3]
+
+    tf_static_broadcaster.sendTransform(root_T_setup_cam_stamped)
+
+    import ipdb; ipdb.set_trace()
 
     for set_rotation in rotation_per_set:
 
