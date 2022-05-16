@@ -2,8 +2,8 @@
 
     <arg name="robot_ip"                                default="172.16.0.2" />
     <arg name="table_height"                            default="" doc="Unset, if present will override the grasp_server_config YAML"/>
-    <arg name="camera_width"                            default="640" />
-    <arg name="camera_height"                           default="480" />
+    <arg name="camera_width"                            default="1280" />
+    <arg name="camera_height"                           default="720" />
     <arg name="camera_fps"                              default="15" />
     <arg name="rviz_config"                             default="rviz.rviz" />
     <arg name="grasp_server_config"                     default="grasp_server_config.yaml" />
