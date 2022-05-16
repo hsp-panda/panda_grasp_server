@@ -1,11 +1,17 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
 
-# The point of this script is to command a set of GRASPA reachability poses to the robot
-# and read the reached poses either from the robot itself or an aruco detection module
-# The saved data has to adhere to the GRASPA savefile fomat.
+# This script takes care of performing the reachability/calibration steps
+# of the GRASPA benchmark. It involves the presence of the robot itself,
+# the hand-mounted camera, the setup-mounted camera, the marker cube, and
+# the GRASPA marker board.
 
-# This code is absolute trash, to be used hopefully only once
+# Make sure the hand-mounted camera can see the board in the robot homing
+# configuration, and that the setup-mounted camera can see both the marker cube
+# (while grasped) and the board for the whole procedure.
 
+# Any transform or matrix is written with the convention
+# a_T_b -> b expressed in the a reference frame
 
 import rospy
 import tf2_ros as tf2
@@ -19,7 +25,7 @@ from panda_ros_common.srv import PandaMove, PandaMoveRequest
 from panda_ros_common.srv import PandaHome, PandaHomeRequest
 from panda_ros_common.srv import PandaGetState
 from panda_ros_common.srv import PandaMoveWaypoints, PandaMoveWaypointsRequest
-from panda_ros_common.srv import PandaSetHome, PandaSetHomeRequest
+from panda_ros_common.srv import PandaGrasp, PandaGraspRequest
 from topic_tools.srv import MuxSelect
 from aruco_board_detect.msg import MarkerList
 
@@ -41,7 +47,9 @@ CAMERA_FRAME_NAME = "camera_link"
 HAND_CAMERA_FRAME_NAME = "camera_link"
 SETUP_CAMERA_FRAME_NAME = "setup_camera"
 SETUP_CAMERA_NAME = "setup_camera"
+SETUP_CAMERA_LINK_NAME = SETUP_CAMERA_NAME + "_link"
 TCP_MARKERS_LIST = [42, 43, 44]
+TCP_MARKER_GRIPPER_SIDE = 41
 TCP_MARKER_OFFSET = [0.0, 0.0, 0.035]
 
 tf_listener = None
@@ -52,7 +60,7 @@ def get_tcp_pose(markers_msg):
     # compute pose of the TCP according to which marker is found
     # if none is found, tcp_pose = none
     # if more than one is found, choose a random one
-    # look for markers 42, 43, 44
+    # look for markers 41, 42, 43, 44
 
     tcp_marker_offset = 0.035
 
@@ -72,7 +80,7 @@ def get_tcp_pose(markers_msg):
 
     # if marker 42, 43 or 44 is present:
 
-    if any(desired_tag in marker_ids_list for desired_tag in [42, 43, 44]):
+    if any(desired_tag in marker_ids_list for desired_tag in [42, 43, 44, TCP_MARKER_GRIPPER_SIDE]):
 
         if 43 in marker_ids_list:
 
@@ -151,6 +159,36 @@ def get_tcp_pose(markers_msg):
             # Obtain the TCP frame by rotating the marker frame
 
             tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=-90)
+
+            # Construct the pose object
+            tcp_pose = PoseStamped()
+            tcp_pose.header.frame_id = markers_msg.header.frame_id
+            tcp_pose.header.stamp = rospy.Time.now()
+            tcp_pose.pose.position.x = tcp_pos[0]
+            tcp_pose.pose.position.y = tcp_pos[1]
+            tcp_pose.pose.position.z = tcp_pos[2]
+            tcp_pose.pose.orientation.w = tcp_quat.w
+            tcp_pose.pose.orientation.x = tcp_quat.x
+            tcp_pose.pose.orientation.y = tcp_quat.y
+            tcp_pose.pose.orientation.z = tcp_quat.z
+
+        elif TCP_MARKER_GRIPPER_SIDE in marker_ids_list:
+
+            marker_pose = marker_pose_list[marker_ids_list.index(TCP_MARKER_GRIPPER_SIDE)]
+            # marker_pose = PoseStamped()
+
+            marker_pos = np.array([marker_pose.position.x, marker_pose.position.y, marker_pose.position.z])
+
+            marker_quat = pq.Quaternion(marker_pose.orientation.w, marker_pose.orientation.x, marker_pose.orientation.y, marker_pose.orientation.z)
+
+            # Translate along marker z axis to get to the TCP frame origin
+
+            marker_z_axis = marker_quat.rotation_matrix[:,2]
+            tcp_pos = marker_pos - tcp_marker_offset * marker_z_axis
+
+            # Obtain the TCP frame by rotating the marker frame
+
+            tcp_quat = marker_quat * pq.Quaternion(axis=[0,1,0], degrees=180)
 
             # Construct the pose object
             tcp_pose = PoseStamped()
@@ -244,6 +282,36 @@ def switch_camera_input(new_camera_name):
 
     return
 
+def grasp_marker_cube(grasp_service_proxy):
+
+    # Marker cube should already be detected via TCP_MARKER_GRIPPER_SIDE
+    # and the tcp pose should be in the global tcp_pos
+
+    tcp_pose_lock.acquire()
+    target_pose = copy.deepcopy(tcp_pose)
+    tcp_pose_lock.release()
+
+    try:
+        tf_listener.waitForTransform(ROOT_FRAME_NAME,
+                                     target_pose.header.frame_id,
+                                     rospy.Time.now(),
+                                     rospy.Duration(3.0))
+        target_pose = tf_listener.transformPose(ROOT_FRAME_NAME, target_pose)
+    except (tf.ExtrapolationException):
+        rospy.logerror("Could not transform cube pose to {}".format(ROOT_FRAME_NAME))
+        return False
+
+    import ipdb; ipdb.set_trace()
+    req = PandaGraspRequest()
+    req.grasp = target_pose
+    req.width.data = 0.07
+    req.plan_only = False
+    rospy.wait_for_service('panda_grasp_server/panda_grasp')
+    res = grasp_service_proxy(req)
+
+    return res.success
+
+
 if __name__ == "__main__":
 
     rospy.init_node("graspa_reachability_calibration")
@@ -261,6 +329,8 @@ if __name__ == "__main__":
     get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
     rospy.wait_for_service('panda_grasp_server/panda_home')
     move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
+    rospy.wait_for_service('panda_grasp_server/panda_grasp')
+    move_grasp = rospy.ServiceProxy('panda_grasp_server/panda_grasp', PandaGrasp)
     rospy.loginfo("Service proxies are up")
 
     # Subscribe to detected markers data topic
@@ -290,63 +360,64 @@ if __name__ == "__main__":
     z_grid = 0.15 * np.ones(x_grid.shape)
     positions_grid = np.dstack((x_grid, y_grid, z_grid))
 
-    # Acquire initial pose (joint space)
+    # Home the robot after user input
+    rospy.loginfo("The robot arm will now home. Press any key to proceed.")
+    raw_input()
+    req = PandaHomeRequest(use_joint_values=True, home_gripper=True)
+    rospy.wait_for_service('panda_grasp_server/panda_home')
+    move_home(req)
+    rospy.loginfo("Homing complete.")
+
+    # Acquire initial pose (joint space).
+    # This will be useful in trajectory planning
     initial_pose_joints = get_robot_state().robot_state.joints_state
     initial_pose_pose = get_robot_state().robot_state.eef_state
 
-    # Set this as home pose
-    # TODO might want to home the robot beforehand? Otherwise the robot is assumed to be already in a home-friendly position
-    rospy.wait_for_service('panda_grasp_server/panda_set_home_pose')
-    set_home_pose = rospy.ServiceProxy('panda_grasp_server/panda_set_home_pose', PandaSetHome)
-    req = PandaSetHomeRequest(home_pose=PoseStamped(),
-                              home_joints=initial_pose_joints,
-                              use_joints=True)
-    set_home_pose(req)
+    # Get the marker cube and re-home
+    rospy.loginfo("Picking up marker cube. Press any key to proceed.")
+    raw_input()
+    if not grasp_marker_cube(move_grasp):
+        rospy.logerror("Could not pick marker cube! Quitting.")
+        sys.exit()
 
-    rospy.loginfo('Initial joint state recorded')
+    req = PandaHomeRequest(use_joint_values=True, home_gripper=False)
+    rospy.wait_for_service('panda_grasp_server/panda_home')
+    move_home(req)
+    rospy.loginfo("Ready to roll.")
+    rospy.loginfo("Detecting GRASPA board.")
 
-    # HERE IS WHERE WE ACQUIRE THE GRASPA BOARD POSE AND
-    # TODO: SWITCH THE CAMERA MULTIPLEXERS
-    # COMPUTE WORLD_T_SETUPCAMERA THROUGH GRASPA_BOARD
-    # PUBLISH WORLD_T_SETUPCAMERA TO TF
-
+    # We now need to compute the setup camera pose, i.e. root_T_setup_cam
+    # We will compute root_T_board and setup_cam_T_board and use these
     # Compute root_T_board
-    # i.e. board in root ref frame
     try:
         tf_listener.waitForTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
         root_T_board = tf_listener.lookupTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
         root_T_board_mat = tf_listener.fromTranslationRotation(root_T_board[0], root_T_board[1])
-        # root_T_board_stamped = TransformStamped()
-        # root_T_board_stamped.header = Header(0, rospy.Time.now(), ROOT_FRAME_NAME)
-        # root_T_board_stamped.child_frame_id = BOARD_FRAME_NAME
-        # root_T_board_stamped.transform.translation.x = root_T_board[0][0]
-        # root_T_board_stamped.transform.translation.y = root_T_board[0][1]
-        # root_T_board_stamped.transform.translation.z = root_T_board[0][2]
-        # root_T_board_stamped.transform.rotation.x = root_T_board[1][0]
-        # root_T_board_stamped.transform.rotation.y = root_T_board[1][1]
-        # root_T_board_stamped.transform.rotation.z = root_T_board[1][2]
-        # root_T_board_stamped.transform.rotation.w = root_T_board[1][3]
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
         rospy.logerror("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
-        # return
+        sys.exit("Quitting...")
+
+    rospy.loginfo("Switching camera stream. Press any key to proceed.")
+    raw_input()
 
     # Switch camera streams
     switch_camera_input(SETUP_CAMERA_NAME)
 
-    # TODO this does not work, we must fix the transform to setup_camera instead
-    # Fix the root_T_board transform
-    # tf_static_broadcaster.sendTransform(root_T_board_stamped)
-
     # Get transformation from setup_camera_link to graspa_board
-    tf_listener.waitForTransform('setup_camera_link', BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
-    setup_cam_T_board = tf_listener.lookupTransform('setup_camera_link', BOARD_FRAME_NAME, tf_listener.getLatestCommonTime('setup_camera_link', BOARD_FRAME_NAME))
+    try:
+        tf_listener.waitForTransform(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
+        setup_cam_T_board = tf_listener.lookupTransform(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
+    except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+        rospy.logerror("Could not retrieve tf between {} and {}".format(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
+        sys.exit("Quitting...")
 
+    # Compute root_T_setup_cam and send it statically
     setup_cam_T_board_mat = tf_listener.fromTranslationRotation(setup_cam_T_board[0], setup_cam_T_board[1])
     root_T_setup_cam_mat = t.concatenate_matrices(root_T_board_mat, t.inverse_matrix(setup_cam_T_board_mat))
 
     root_T_setup_cam_stamped = TransformStamped()
     root_T_setup_cam_stamped.header = Header(0, rospy.Time.now(), ROOT_FRAME_NAME)
-    root_T_setup_cam_stamped.child_frame_id = 'setup_camera_link'
+    root_T_setup_cam_stamped.child_frame_id = SETUP_CAMERA_LINK_NAME
     root_T_setup_cam_stamped.transform.translation.x = t.translation_from_matrix(root_T_setup_cam_mat)[0]
     root_T_setup_cam_stamped.transform.translation.y = t.translation_from_matrix(root_T_setup_cam_mat)[1]
     root_T_setup_cam_stamped.transform.translation.z = t.translation_from_matrix(root_T_setup_cam_mat)[2]
@@ -357,7 +428,8 @@ if __name__ == "__main__":
 
     tf_static_broadcaster.sendTransform(root_T_setup_cam_stamped)
 
-    import ipdb; ipdb.set_trace()
+    rospy.loginfo("Setup ready for reachability/calibration motion routine. Press any key to proceed.")
+    raw_input()
 
     for set_rotation in rotation_per_set:
 
