@@ -25,7 +25,7 @@ from panda_ros_common.srv import PandaMove, PandaMoveRequest
 from panda_ros_common.srv import PandaHome, PandaHomeRequest
 from panda_ros_common.srv import PandaGetState
 from panda_ros_common.srv import PandaMoveWaypoints, PandaMoveWaypointsRequest
-from panda_ros_common.srv import PandaGrasp, PandaGraspRequest
+from panda_ros_common.srv import PandaGripperCommand, PandaGripperCommandRequest
 from topic_tools.srv import MuxSelect
 from aruco_board_detect.msg import MarkerList
 
@@ -282,34 +282,64 @@ def switch_camera_input(new_camera_name):
 
     return
 
-def grasp_marker_cube(grasp_service_proxy):
+def position_difference(pos_1, pos_2):
 
-    # Marker cube should already be detected via TCP_MARKER_GRIPPER_SIDE
-    # and the tcp pose should be in the global tcp_pos
+    return np.linalg.norm(np.array(pos_1) - np.array(pos_2))
 
-    tcp_pose_lock.acquire()
-    target_pose = copy.deepcopy(tcp_pose)
-    tcp_pose_lock.release()
+def rotation_difference_quat(quat_1, quat_2):
 
-    try:
-        tf_listener.waitForTransform(ROOT_FRAME_NAME,
-                                     target_pose.header.frame_id,
-                                     rospy.Time.now(),
-                                     rospy.Duration(3.0))
-        target_pose = tf_listener.transformPose(ROOT_FRAME_NAME, target_pose)
-    except (tf.ExtrapolationException):
-        rospy.logerror("Could not transform cube pose to {}".format(ROOT_FRAME_NAME))
+    acc = 0
+    for idx in range(4):
+        acc += quat_1[idx] * quat_2[idx]
+
+    theta = 2 * np.arccos(np.absolute(acc))
+    return theta
+
+def grasp_marker_cube(move_finger_proxy):
+
+    # Since auto grasping from the table is not really precise enough,
+    # we ask the user to manually position the cube in the robot hand
+
+    rospy.loginfo("Insert the marker cube between the robot fingers, with marker 41 on the hand side. Press any key to continue.")
+    raw_input()
+
+    req = PandaGripperCommandRequest(width=0.06, close_grasp=True)
+    rospy.wait_for_service('panda_grasp_server/panda_gripper_cmd')
+    res = move_finger_proxy(req)
+    if res.success:
+        # Make sure the cube is oriented correctly
+
+        # Get transformation from root to tcp_estimated
+        try:
+            tf_listener.waitForTransform(ROOT_FRAME_NAME, "tcp_estimated", rospy.Time(0), rospy.Duration(3.0))
+            root_T_tcp_estimated = tf_listener.lookupTransform(ROOT_FRAME_NAME, "tcp_estimated", tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, "tcp_estimated"))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "tcp_estimated"))
+            return False
+
+        # Get transformation from root to tcp_estimated
+        try:
+            tf_listener.waitForTransform(ROOT_FRAME_NAME, "panda_tcp", rospy.Time(0), rospy.Duration(3.0))
+            root_T_tcp = tf_listener.lookupTransform(ROOT_FRAME_NAME, "panda_tcp", tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, "panda_tcp"))
+        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+            rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "panda_tcp"))
+            return False
+
+        r_diff = rotation_difference_quat(root_T_tcp_estimated[1], root_T_tcp[1])
+        p_diff = position_difference(root_T_tcp_estimated[0], root_T_tcp[0])
+
+        import ipdb; ipdb.set_trace()
+
+        if position_difference(root_T_tcp_estimated[0], root_T_tcp[0]) < 0.1 and rotation_difference_quat(root_T_tcp_estimated[1], root_T_tcp[1]) < 0.5 :
+            rospy.loginfo("Marker set correctly")
+            return True
+        else:
+            rospy.loginfo("Marker set incorrectly")
+            return False
+
+    else:
+        rospy.logerr("Could not grasp the marker cube.")
         return False
-
-    import ipdb; ipdb.set_trace()
-    req = PandaGraspRequest()
-    req.grasp = target_pose
-    req.width.data = 0.07
-    req.plan_only = False
-    rospy.wait_for_service('panda_grasp_server/panda_grasp')
-    res = grasp_service_proxy(req)
-
-    return res.success
 
 
 if __name__ == "__main__":
@@ -329,8 +359,8 @@ if __name__ == "__main__":
     get_robot_state = rospy.ServiceProxy('panda_grasp_server/panda_get_state', PandaGetState)
     rospy.wait_for_service('panda_grasp_server/panda_home')
     move_home = rospy.ServiceProxy('panda_grasp_server/panda_home', PandaHome)
-    rospy.wait_for_service('panda_grasp_server/panda_grasp')
-    move_grasp = rospy.ServiceProxy('panda_grasp_server/panda_grasp', PandaGrasp)
+    rospy.wait_for_service('panda_grasp_server/panda_gripper_cmd')
+    finger_move = rospy.ServiceProxy('panda_grasp_server/panda_gripper_cmd', PandaGripperCommand)
     rospy.loginfo("Service proxies are up")
 
     # Subscribe to detected markers data topic
@@ -373,17 +403,6 @@ if __name__ == "__main__":
     initial_pose_joints = get_robot_state().robot_state.joints_state
     initial_pose_pose = get_robot_state().robot_state.eef_state
 
-    # Get the marker cube and re-home
-    rospy.loginfo("Picking up marker cube. Press any key to proceed.")
-    raw_input()
-    if not grasp_marker_cube(move_grasp):
-        rospy.logerror("Could not pick marker cube! Quitting.")
-        sys.exit()
-
-    req = PandaHomeRequest(use_joint_values=True, home_gripper=False)
-    rospy.wait_for_service('panda_grasp_server/panda_home')
-    move_home(req)
-    rospy.loginfo("Ready to roll.")
     rospy.loginfo("Detecting GRASPA board.")
 
     # We now need to compute the setup camera pose, i.e. root_T_setup_cam
@@ -394,7 +413,7 @@ if __name__ == "__main__":
         root_T_board = tf_listener.lookupTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
         root_T_board_mat = tf_listener.fromTranslationRotation(root_T_board[0], root_T_board[1])
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        rospy.logerror("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
+        rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
         sys.exit("Quitting...")
 
     rospy.loginfo("Switching camera stream. Press any key to proceed.")
@@ -408,7 +427,7 @@ if __name__ == "__main__":
         tf_listener.waitForTransform(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
         setup_cam_T_board = tf_listener.lookupTransform(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        rospy.logerror("Could not retrieve tf between {} and {}".format(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
+        rospy.logerr("Could not retrieve tf between {} and {}".format(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
         sys.exit("Quitting...")
 
     # Compute root_T_setup_cam and send it statically
@@ -427,6 +446,17 @@ if __name__ == "__main__":
     root_T_setup_cam_stamped.transform.rotation.w = t.quaternion_from_matrix(root_T_setup_cam_mat)[3]
 
     tf_static_broadcaster.sendTransform(root_T_setup_cam_stamped)
+
+    # Get the marker cube and re-home
+    rospy.loginfo("Picking up marker cube. Press any key to proceed.")
+    raw_input()
+    if not grasp_marker_cube(finger_move):
+        rospy.logerr("Could not pick marker cube! Quitting.")
+        sys.exit()
+
+    req = PandaHomeRequest(use_joint_values=True, home_gripper=False)
+    rospy.wait_for_service('panda_grasp_server/panda_home')
+    move_home(req)
 
     rospy.loginfo("Setup ready for reachability/calibration motion routine. Press any key to proceed.")
     raw_input()
