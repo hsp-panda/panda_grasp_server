@@ -403,7 +403,8 @@ class PandaActionServer(object):
     def gripper_command_callback(self, req):
 
         # Handle weird command
-        if req.close_gripper and req.open_gripper:
+        # Only one of the flags can be true
+        if (int(req.close_gripper) + int(req.open_gripper) + int(req.close_grasp)) > 1:
             rospy.loginfo("Gripper command invalid. No operation will be performed")
             return False
 
@@ -411,6 +412,8 @@ class PandaActionServer(object):
             return self.close_gripper()
         elif req.open_gripper:
             return self.open_gripper()
+        elif req.close_grasp:
+            return self.grasp(req.width)
         else:
             return self.command_gripper(req.width)
 
