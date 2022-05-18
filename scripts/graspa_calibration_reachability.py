@@ -325,11 +325,6 @@ def grasp_marker_cube(move_finger_proxy):
             rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "panda_tcp"))
             return False
 
-        r_diff = rotation_difference_quat(root_T_tcp_estimated[1], root_T_tcp[1])
-        p_diff = position_difference(root_T_tcp_estimated[0], root_T_tcp[0])
-
-        import ipdb; ipdb.set_trace()
-
         if position_difference(root_T_tcp_estimated[0], root_T_tcp[0]) < 0.1 and rotation_difference_quat(root_T_tcp_estimated[1], root_T_tcp[1]) < 0.5 :
             rospy.loginfo("Marker set correctly")
             return True
