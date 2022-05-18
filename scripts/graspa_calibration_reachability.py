@@ -411,7 +411,21 @@ if __name__ == "__main__":
         rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, BOARD_FRAME_NAME))
         sys.exit("Quitting...")
 
-    rospy.loginfo("Switching camera stream. Press any key to proceed.")
+    # Move to the center of the board
+    rospy.loginfo("The robot arm will move to the center of the board. Press any key to proceed.")
+    raw_input()
+
+    move_to_pose.wait_for_service()
+    target = PandaMoveWaypointsRequest()
+    target.pose_waypoints.header = Header(stamp = rospy.Time.now(), frame_id = ROOT_FRAME_NAME)
+    target_pose = copy.deepcopy(initial_pose_pose.pose)
+    target_pose.position.x = root_T_board[0][0] + 0.18
+    target_pose.position.y = root_T_board[0][1] + 0.256
+    target_pose.position.z = root_T_board[0][2] + 0.3
+    target.pose_waypoints.poses = [initial_pose_pose.pose, target_pose]
+    move_to_pose(target)
+
+    rospy.loginfo("Switching camera stream. Make sure the setup camera can see both the board and gripper. Press any key to proceed.")
     raw_input()
 
     # Switch camera streams
