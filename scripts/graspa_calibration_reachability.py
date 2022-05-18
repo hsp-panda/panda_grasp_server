@@ -421,8 +421,8 @@ if __name__ == "__main__":
     target_pose = copy.deepcopy(initial_pose_pose.pose)
     target_pose.position.x = root_T_board[0][0] + 0.18
     target_pose.position.y = root_T_board[0][1] + 0.256
-    target_pose.position.z = root_T_board[0][2] + 0.3
-    target.pose_waypoints.poses = [initial_pose_pose.pose, target_pose]
+    target_pose.position.z = root_T_board[0][2] + 0.2
+    target.pose_waypoints.poses = [target_pose]
     move_to_pose(target)
 
     rospy.loginfo("Switching camera stream. Make sure the setup camera can see both the board and gripper. Press any key to proceed.")
