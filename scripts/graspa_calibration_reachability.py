@@ -463,12 +463,12 @@ if __name__ == "__main__":
         rospy.logerr("Could not pick marker cube! Quitting.")
         sys.exit()
 
+    rospy.loginfo("Setup ready for reachability/calibration motion routine. Press any key to proceed.")
+    raw_input()
+
     req = PandaHomeRequest(use_joint_values=True, home_gripper=False)
     rospy.wait_for_service('panda_grasp_server/panda_home')
     move_home(req)
-
-    rospy.loginfo("Setup ready for reachability/calibration motion routine. Press any key to proceed.")
-    raw_input()
 
     for set_rotation in rotation_per_set:
 
