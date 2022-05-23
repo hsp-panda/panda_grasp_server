@@ -65,6 +65,15 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        camera_bottom_screw_frame:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        camera_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
         panda_hand:
           Alpha: 1
           Show Axes: false
@@ -129,6 +138,10 @@ Visualization Manager:
           Alpha: 1
           Show Axes: false
           Show Trail: false
+        realsense_bottom_screw_attachment:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
       Loop Animation: true
       Name: Trajectory
       Robot Alpha: 0.5
@@ -162,6 +175,15 @@ Visualization Manager:
           Expand Link Details: false
           Expand Tree: false
           Link Tree Style: Links in Alphabetic Order
+          camera_bottom_screw_frame:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+          camera_link:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
+            Value: true
           panda_hand:
             Alpha: 1
             Show Axes: false
@@ -226,6 +248,10 @@ Visualization Manager:
             Alpha: 1
             Show Axes: false
             Show Trail: false
+          realsense_bottom_screw_attachment:
+            Alpha: 1
+            Show Axes: false
+            Show Trail: false
         Robot Alpha: 1
         Show Robot Collision: false
         Show Robot Visual: true
@@ -266,15 +292,17 @@ Visualization Manager:
       Frames:
         All Enabled: false
         aruco_board:
-          Value: true
+          Value: false
+        camera_bottom_screw_frame:
+          Value: false
         camera_link:
-          Value: true
+          Value: false
         graspa_board:
           Value: true
         hand_camera_color_frame:
-          Value: true
+          Value: false
         hand_camera_color_optical_frame:
-          Value: true
+          Value: false
         hand_camera_link:
           Value: true
         panda_EE:
@@ -282,7 +310,7 @@ Visualization Manager:
         panda_K:
           Value: false
         panda_NE:
-          Value: true
+          Value: false
         panda_hand:
           Value: false
         panda_leftfinger:
@@ -309,10 +337,12 @@ Visualization Manager:
           Value: false
         panda_tcp:
           Value: true
+        realsense_bottom_screw_attachment:
+          Value: false
         setup_camera_color_frame:
-          Value: true
+          Value: false
         setup_camera_color_optical_frame:
-          Value: true
+          Value: false
         setup_camera_link:
           Value: true
         world:
@@ -338,19 +368,21 @@ Visualization Manager:
                                 panda_K:
                                   {}
                             panda_hand:
-                              camera_link:
-                                hand_camera_link:
-                                  hand_camera_color_frame:
-                                    hand_camera_color_optical_frame:
-                                      aruco_board:
-                                        graspa_board:
-                                          {}
                               panda_leftfinger:
                                 {}
                               panda_rightfinger:
                                 {}
                               panda_tcp:
                                 {}
+                            realsense_bottom_screw_attachment:
+                              camera_bottom_screw_frame:
+                                camera_link:
+                                  hand_camera_link:
+                                    hand_camera_color_frame:
+                                      hand_camera_color_optical_frame:
+                                        aruco_board:
+                                          graspa_board:
+                                            {}
       Update Interval: 0
       Value: true
     - Class: rviz/MarkerArray
