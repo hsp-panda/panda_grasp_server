@@ -5,7 +5,7 @@
     <arg name="camera_width"                            default="1280" />
     <arg name="camera_height"                           default="720" />
     <arg name="camera_fps"                              default="15" />
-    <arg name="rviz_config"                             default="rviz.rviz" />
+    <arg name="rviz_config"                             default="calib_reach.rviz" />
     <arg name="grasp_server_config"                     default="grasp_server_config.yaml" />
     <arg name="hand_camera_serial"                      doc="Serial number of the hand-mounted camera" />
     <arg name="setup_camera_serial"                     doc="Serial number of the setup-mounted camera" />
