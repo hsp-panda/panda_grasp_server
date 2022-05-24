@@ -33,6 +33,7 @@ from aruco_board_detect.msg import MarkerList
 import pyquaternion as pq
 import numpy as np
 import sys
+import os
 from threading import Lock
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
@@ -619,15 +620,19 @@ if __name__ == "__main__":
 
         # Save xml
         domstring = minidom.parseString(ET.tostring(reachability_scene_root))
+        reachability_savepath = os.path.join(rospy.get_param('/panda_grasp_server/ops_params/grasp_save_path'), 'reaching_test')
         filename = "reached_poses{}.xml".format(format(int(rotation_per_set.index(set_rotation))))
-
+        filename = os.path.join(reachability_savepath, filename)
+        
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, "w") as handle:
             handle.write(domstring.toprettyxml())
 
         domstring = minidom.parseString(ET.tostring(calibration_scene_root))
+        calibration_savepath = os.path.join(rospy.get_param('/panda_grasp_server/ops_params/grasp_save_path'), 'camera_calibration')
         filename = "cam_calibration_test_output{}.xml".format(format(int(rotation_per_set.index(set_rotation))))
-
+        filename = os.path.join(calibration_savepath, filename)
+        
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, "w") as handle:
             handle.write(domstring.toprettyxml())
-
-
