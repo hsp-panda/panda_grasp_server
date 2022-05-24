@@ -929,6 +929,12 @@ class PandaActionServer(object):
 
         return True
 
+    def shutdown_handle(self):
+
+        # Safe shutdown
+        self.stop_motion_callback(TriggerRequest())
+
+
 def main():
 
     # Initialize the ROS node.
@@ -939,6 +945,7 @@ def main():
 
     # Instantiate the action server.
     grasp_planner = PandaActionServer(config)
+    rospy.on_shutdown(grasp_planner.shutdown_handle)
 
     # Spin forever.
     rospy.spin()
