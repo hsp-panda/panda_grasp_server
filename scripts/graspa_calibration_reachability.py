@@ -27,6 +27,7 @@ from panda_ros_common.srv import PandaGetState
 from panda_ros_common.srv import PandaMoveWaypoints, PandaMoveWaypointsRequest
 from panda_ros_common.srv import PandaGripperCommand, PandaGripperCommandRequest
 from topic_tools.srv import MuxSelect
+from std_srvs.srv import Trigger, TriggerRequest
 from aruco_board_detect.msg import MarkerList
 
 import pyquaternion as pq
@@ -295,6 +296,15 @@ def rotation_difference_quat(quat_1, quat_2):
     theta = 2 * np.arccos(np.absolute(acc))
     return theta
 
+def stop_robot():
+
+    # Use panda_grasp_server's stop service to
+    # stop both robot and gripper
+
+    rospy.wait_for_service("/panda_grasp_server/panda_stop")
+    stop = rospy.ServiceProxy("/panda_grasp_server/panda_stop", Trigger)
+    stop(TriggerRequest())
+
 def grasp_marker_cube(move_finger_proxy):
 
     # Since auto grasping from the table is not really precise enough,
@@ -335,11 +345,17 @@ def grasp_marker_cube(move_finger_proxy):
     else:
         rospy.logerr("Could not grasp the marker cube.")
         return False
+def shutdown_handle():
+
+    # Switch camera streams
+    switch_camera_input(HAND_CAMERA_NAME)
+    rospy.loginfo("Switched back camera")
 
 
 if __name__ == "__main__":
 
     rospy.init_node("graspa_reachability_calibration")
+    rospy.on_shutdown(shutdown_handle)
 
     # Set up TF listener and broadcaster
     tf_listener = tf.TransformListener(True, rospy.Duration(10))
