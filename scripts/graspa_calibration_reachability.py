@@ -44,11 +44,13 @@ tcp_pose_lock = Lock()
 
 BOARD_FRAME_NAME = "graspa_board"
 ROOT_FRAME_NAME = "panda_link0"
-CAMERA_FRAME_NAME = "camera_link"
-HAND_CAMERA_FRAME_NAME = "camera_link"
-SETUP_CAMERA_FRAME_NAME = "setup_camera"
+MUXED_CAMERA_NAME = "camera"
+HAND_CAMERA_NAME = "hand_camera"
+HAND_CAMERA_LINK_NAME = HAND_CAMERA_NAME + "_link"
+HAND_CAMERA_FRAME_NAME = HAND_CAMERA_LINK_NAME
 SETUP_CAMERA_NAME = "setup_camera"
 SETUP_CAMERA_LINK_NAME = SETUP_CAMERA_NAME + "_link"
+SETUP_CAMERA_FRAME_NAME = SETUP_CAMERA_LINK_NAME
 TCP_MARKERS_LIST = [42, 43, 44]
 TCP_MARKER_GRIPPER_SIDE = 41
 TCP_MARKER_OFFSET = [0.0, 0.0, 0.035]
@@ -310,41 +312,56 @@ def grasp_marker_cube(move_finger_proxy):
     # Since auto grasping from the table is not really precise enough,
     # we ask the user to manually position the cube in the robot hand
 
-    rospy.loginfo("Insert the marker cube between the robot fingers, with marker 41 on the hand side. Press any key to continue.")
-    raw_input()
+    marker_cube_grasped = False
 
-    req = PandaGripperCommandRequest(width=0.06, close_grasp=True)
-    rospy.wait_for_service('panda_grasp_server/panda_gripper_cmd')
-    res = move_finger_proxy(req)
-    if res.success:
-        # Make sure the cube is oriented correctly
+    while not marker_cube_grasped:
 
-        # Get transformation from root to tcp_estimated
-        try:
-            tf_listener.waitForTransform(ROOT_FRAME_NAME, "tcp_estimated", rospy.Time(0), rospy.Duration(3.0))
-            root_T_tcp_estimated = tf_listener.lookupTransform(ROOT_FRAME_NAME, "tcp_estimated", tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, "tcp_estimated"))
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "tcp_estimated"))
-            return False
+        stop_robot()
 
-        # Get transformation from root to tcp_estimated
-        try:
-            tf_listener.waitForTransform(ROOT_FRAME_NAME, "panda_tcp", rospy.Time(0), rospy.Duration(3.0))
-            root_T_tcp = tf_listener.lookupTransform(ROOT_FRAME_NAME, "panda_tcp", tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, "panda_tcp"))
-        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-            rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "panda_tcp"))
-            return False
+        req = PandaGripperCommandRequest(width=0.08)
+        rospy.wait_for_service('panda_grasp_server/panda_gripper_cmd')
+        res = move_finger_proxy(req)
 
-        if position_difference(root_T_tcp_estimated[0], root_T_tcp[0]) < 0.1 and rotation_difference_quat(root_T_tcp_estimated[1], root_T_tcp[1]) < 0.5 :
-            rospy.loginfo("Marker set correctly")
-            return True
+        rospy.loginfo("Insert the marker cube between the robot fingers, with marker 41 on the hand side. Check rViz and align tcp_estimated with panda_tcp.. Press any key to continue.")
+        raw_input()
+
+        req = PandaGripperCommandRequest(width=0.06, close_grasp=True)
+        rospy.wait_for_service('panda_grasp_server/panda_gripper_cmd')
+        res = move_finger_proxy(req)
+
+        if res.success:
+            # Make sure the cube is oriented correctly
+
+            # Get transformation from root to tcp_estimated
+            try:
+                tf_listener.waitForTransform(ROOT_FRAME_NAME, "tcp_estimated", rospy.Time(0), rospy.Duration(3.0))
+                root_T_tcp_estimated = tf_listener.lookupTransform(ROOT_FRAME_NAME, "tcp_estimated", tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, "tcp_estimated"))
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "tcp_estimated"))
+                pass
+
+            # Get transformation from root to tcp_estimated
+            try:
+                tf_listener.waitForTransform(ROOT_FRAME_NAME, "panda_tcp", rospy.Time(0), rospy.Duration(3.0))
+                root_T_tcp = tf_listener.lookupTransform(ROOT_FRAME_NAME, "panda_tcp", tf_listener.getLatestCommonTime(ROOT_FRAME_NAME, "panda_tcp"))
+            except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
+                rospy.logerr("Could not retrieve tf between {} and {}".format(ROOT_FRAME_NAME, "panda_tcp"))
+                pass
+
+            if position_difference(root_T_tcp_estimated[0], root_T_tcp[0]) < 0.1 and rotation_difference_quat(root_T_tcp_estimated[1], root_T_tcp[1]) < 0.5 :
+                rospy.loginfo("Marker set correctly")
+                marker_cube_grasped = True
+                pass
+            else:
+                rospy.loginfo("Marker set incorrectly. Check rViz and align tcp_estimated with panda_tcp.")
+                pass
+
         else:
-            rospy.loginfo("Marker set incorrectly")
-            return False
+            rospy.logerr("Could not grasp the marker cube.")
+            pass
 
-    else:
-        rospy.logerr("Could not grasp the marker cube.")
-        return False
+    return True
+
 def shutdown_handle():
 
     # Switch camera streams
@@ -449,10 +466,10 @@ if __name__ == "__main__":
 
     # Get transformation from setup_camera_link to graspa_board
     try:
-        tf_listener.waitForTransform(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
-        setup_cam_T_board = tf_listener.lookupTransform(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
+        tf_listener.waitForTransform(SETUP_CAMERA_FRAME_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
+        setup_cam_T_board = tf_listener.lookupTransform(SETUP_CAMERA_FRAME_NAME, BOARD_FRAME_NAME, tf_listener.getLatestCommonTime(SETUP_CAMERA_FRAME_NAME, BOARD_FRAME_NAME))
     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
-        rospy.logerr("Could not retrieve tf between {} and {}".format(SETUP_CAMERA_LINK_NAME, BOARD_FRAME_NAME))
+        rospy.logerr("Could not retrieve tf between {} and {}".format(SETUP_CAMERA_FRAME_NAME, BOARD_FRAME_NAME))
         sys.exit("Quitting...")
 
     # Compute root_T_setup_cam and send it statically
@@ -461,7 +478,7 @@ if __name__ == "__main__":
 
     root_T_setup_cam_stamped = TransformStamped()
     root_T_setup_cam_stamped.header = Header(0, rospy.Time.now(), ROOT_FRAME_NAME)
-    root_T_setup_cam_stamped.child_frame_id = SETUP_CAMERA_LINK_NAME
+    root_T_setup_cam_stamped.child_frame_id = SETUP_CAMERA_FRAME_NAME
     root_T_setup_cam_stamped.transform.translation.x = t.translation_from_matrix(root_T_setup_cam_mat)[0]
     root_T_setup_cam_stamped.transform.translation.y = t.translation_from_matrix(root_T_setup_cam_mat)[1]
     root_T_setup_cam_stamped.transform.translation.z = t.translation_from_matrix(root_T_setup_cam_mat)[2]
@@ -523,7 +540,7 @@ if __name__ == "__main__":
                 rate = rospy.Rate(10)
                 while not rospy.is_shutdown() and pose_root is None:
                     try:
-                        tf_listener.waitForTransform(ROOT_FRAME_NAME, CAMERA_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
+                        tf_listener.waitForTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, rospy.Time(0), rospy.Duration(3.0))
                         pose_root = tf_listener.transformPose(ROOT_FRAME_NAME, pose_graspa)
                         break
                     except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException):
@@ -563,7 +580,7 @@ if __name__ == "__main__":
                     success = False
                     while not success and not rospy.is_shutdown():
                         try:
-                            tf_listener.waitForTransform(ROOT_FRAME_NAME, CAMERA_FRAME_NAME, eef_pose_direct_kin.header.stamp , rospy.Duration(3.0))
+                            tf_listener.waitForTransform(ROOT_FRAME_NAME, BOARD_FRAME_NAME, eef_pose_direct_kin.header.stamp , rospy.Duration(3.0))
                             reachability_pose = tf_listener.transformPose(BOARD_FRAME_NAME, eef_pose_direct_kin)
                             success = True
                         except (tf.ExtrapolationException):
@@ -585,7 +602,7 @@ if __name__ == "__main__":
 
                     # tcp_pose is supposed a PoseStamped
 
-                    tf_listener.waitForTransform(BOARD_FRAME_NAME, CAMERA_FRAME_NAME, tcp_pose.header.stamp, rospy.Duration(3.0))
+                    tf_listener.waitForTransform(BOARD_FRAME_NAME, SETUP_CAMERA_FRAME_NAME, tcp_pose.header.stamp, rospy.Duration(3.0))
                     visual_pose = tf_listener.transformPose(BOARD_FRAME_NAME, tcp_pose)
                     tcp_pose_lock.release()
 
