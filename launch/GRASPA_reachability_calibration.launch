@@ -65,6 +65,9 @@
     <!-- Start the grasp and movement server node -->
     <rosparam command="load" file="$(find panda_grasp_server)/config/$(arg grasp_server_config)" ns="panda_grasp_server" />
     <param name="/panda_grasp_server/workspace/table_height" type="double" value="$(arg table_height)" unless="$(eval table_height == '')" />
-    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen" />
+    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="log" />
+
+    <!-- Start the calibration_reachability script -->
+    <node name="calibration_reachability" pkg="panda_grasp_server" type="graspa_calibration_reachability.py" output="screen" />
 
 </launch>
