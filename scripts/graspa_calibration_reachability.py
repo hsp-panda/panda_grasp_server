@@ -273,12 +273,12 @@ def switch_camera_input(new_camera_name):
 
     # Switch camera info
     req = MuxSelect()
-    req = "/" + SETUP_CAMERA_NAME + "/color/camera_info"
+    req = "/" + new_camera_name + "/color/camera_info"
     res = camera_info_mux(req)
 
     # Switch camera image
     req = MuxSelect()
-    req = "/" + SETUP_CAMERA_NAME + "/color/image_raw"
+    req = "/" + new_camera_name + "/color/image_raw"
     res = camera_image_mux(req)
 
     rospy.loginfo("Switched camera input")
