@@ -37,4 +37,4 @@ gripper/gripper_type                : "FRANKA_HAND"
 ops_params/enable_force_grasp         : True # Enable force-based grasping
 ops_params/enable_graspa_stab_motion  : True # Enable graspa stability motion after grasping
 ops_params/enable_graspa_save_grasp   : True # Enable saving grasps in graspa-format
-ops_params/grasp_save_path            : "saved_grasps"
+ops_params/grasp_save_path            : "/shared/saved_grasps"
