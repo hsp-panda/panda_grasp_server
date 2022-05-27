@@ -48,7 +48,8 @@ Depending on whether you wish to run the GRASPA reachability/visual calibration 
 
 1. Position the GRASPA board in front of the robot, in the same position used for benchmarking grasps.
 
-1. 3D-print and assemble the [marker cube](https://github.com/hsp-panda/aruco_board_detect/tree/panda_graspa/assets). The edge of the single markers must measure 4 cm, as in the [cfg file](https://github.com/hsp-panda/aruco_board_detect/blob/panda_graspa/aruco_board_detect/cfg/single_markers_config.yaml). Make sure to assemble the cube so that the markers are in the right face and orientation. 
+1. 3D-print and assemble the [marker cube](https://github.com/hsp-panda/aruco_board_detect/tree/panda_graspa/assets). Find the meshes in `assets/*.stl` and the markers in `assets/marker_*.png`. The edge of the single markers must measure 4 cm, as in the [cfg file](https://github.com/hsp-panda/aruco_board_detect/blob/panda_graspa/aruco_board_detect/cfg/single_markers_config.yaml). Make sure to assemble the cube so that the markers are in the right face and orientation. Final assembly should look something like this. 
+
 
 ![image of the assembled marker cube](assets/assembled_marker_cube.png)
 ![marker order](assets/marker_order.png)
