@@ -77,7 +77,7 @@ Depending on whether you wish to run the GRASPA reachability/visual calibration 
 
 1. Output will be found in a directory called `shared` in this repo.
 
-[setup photo](assets/setup-objects-board.png)
+![setup photo](assets/setup-objects-board.png)
 
 Expected output:
 ![IMAGE](assets/home.png)
