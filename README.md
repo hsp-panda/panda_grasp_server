@@ -15,10 +15,12 @@ GRASPA deployment requires
 - one or more Intel Realsense cameras (mounted on the hand and on the setup)
 - Franka Hand mount for the Intel Realsense camera ([Franka camera mount](https://download.franka.de/panda_camera_mount.zip))
 - GRASPA layout boards ([printables](https://github.com/hsp-iit/GRASPA-benchmark/tree/master/data/scenes/grasping/printable_layouts))
-- GRASPA marker cube for the Franka Hand ([printable cube and markers](https://github.com/hsp-panda/aruco_board_detect/tree/main/assets))
-- a workstation where Docker 19.03+ and a Real-Time kernel are installed[1].
+- GRASPA marker cube for the Franka Hand ([printable cube and markers](https://github.com/hsp-panda/aruco_board_detect/tree/main/assets))[1]
+- a workstation where Docker 19.03+ and a Real-Time kernel are installed[2].
 
-[1] a good guide on how to install a RT linux kernel can be found in the official [Franka Control Interface documentation](https://frankaemika.github.io/docs/installation_linux.html#setting-up-the-real-time-kernel).
+[1] find files and instructions on how to build the marker cube at the link.
+
+[2] a good guide on how to install a RT linux kernel can be found in the official [Franka Control Interface documentation](https://frankaemika.github.io/docs/installation_linux.html#setting-up-the-real-time-kernel).
 
 #### Software
 
@@ -48,7 +50,8 @@ Depending on whether you wish to run the GRASPA reachability/visual calibration 
 
 1. 3D-print and assemble the [marker cube](https://github.com/hsp-panda/aruco_board_detect/tree/panda_graspa/assets). The edge of the single markers must measure 4 cm, as in the [cfg file](https://github.com/hsp-panda/aruco_board_detect/blob/panda_graspa/aruco_board_detect/cfg/single_markers_config.yaml). Make sure to assemble the cube so that the markers are in the right face and orientation. 
 
-![image of the assembled marker cube]()
+![image of the assembled marker cube](assets/assembled_marker_cube.png)
+![marker order](assets/marker_order.png)
 
 1. Run the pipeline using `GRASPA_reachability_calibration.launch` or [`run_calibration_reachability.sh`](https://github.com/hsp-panda/dockerfiles-panda/blob/main/ros_panda_setup/ros_panda_setup_graspa/run_reachability_calibration.sh), taking care of specifying the required parameters.
 
