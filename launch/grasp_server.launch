@@ -1,16 +1,20 @@
 <launch>
 
+    <!-- Grasp server arguments -->
     <arg name="load_gripper"                            default="true" />
-    <arg name="gripper_type"                            default="FRANKA_HAND"
-                                                        doc="FRANKA_HAND, ROBOTIQ_2F or ROBOTIQ_2F_FC" />
+    <arg name="gripper_type"                            doc="FRANKA_HAND, ROBOTIQ_2F or ROBOTIQ_2F_FC." />
     <arg name="robot_ip"                                default="172.16.0.2" />
     <arg name="table_height"                            default="" doc="Unset, if present will override the grasp_server_config YAML"/>
     <arg name="start_realsense"                         default="true" />
     <arg name="rviz_config"                             default="rviz.rviz" />
-    <arg name="enable_force_grasp"                      default="false" />
     <arg name="moveit_use_bio_ik"                       default="false" />
-    <arg name="enable_graspa_stab_motion"               default="false" />
     <arg name="grasp_server_config"                     default="grasp_server_config.yaml" />
+
+    <!-- Camera-related arguments -->
+    <arg name="pc_segmentation"                         default="true" doc="If true, will attempt at plane removal"/>
+    <arg name="camera_width"                            default="640" />
+    <arg name="camera_height"                           default="480" />
+    <arg name="camera_fps"                              default="15" />
 
     <!-- Start robot controllers, moveit and rviz -->
     <include file="$(find panda_moveit_config)/launch/panda_control_moveit_rviz.launch" if="$(eval (arg('gripper_type') == 'FRANKA_HAND') or (arg('load_gripper') == 'false'))" >
@@ -21,46 +25,44 @@
     </include>
 
     <include file="$(find robotiq_panda_moveit_config)/launch/robotiq_panda_control_moveit.launch" if="$(eval arg('gripper_type') == 'ROBOTIQ_2F' )" >
-        <!-- <arg name="load_gripper"                    value="true" /> -->
-        <!-- <arg name="gripper_type"                    value="$(arg gripper_type)" /> -->
         <arg name="robot_ip"                        value="$(arg robot_ip)" />
         <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
+        <!-- <arg name="load_gripper"                    value="true" /> -->
+        <!-- <arg name="gripper_type"                    value="$(arg gripper_type)" /> -->
         <!-- <arg name="moveit_use_bio_ik"               value="$(arg moveit_use_bio_ik)" /> -->
     </include>
 
     <include file="$(find robotiq_panda_moveit_config)/launch/robotiq_panda_control_moveit.launch" if="$(eval arg('gripper_type') == 'ROBOTIQ_2F_FC' )" >
-        <!-- <arg name="load_gripper"                    value="true" /> -->
-        <!-- <arg name="gripper_type"                    value="$(arg gripper_type)" /> -->
-        <!-- <arg name="enable_force_grasp"              value="true" /> -->
         <arg name="robot_ip"                        value="$(arg robot_ip)" />
         <arg name="rviz_command_args"               value="-d $(find panda_grasp_server)/rviz/$(arg rviz_config)" />
+        <!-- <arg name="load_gripper"                    value="true" /> -->
+        <!-- <arg name="gripper_type"                    value="$(arg gripper_type)" /> -->
         <!-- <arg name="moveit_use_bio_ik"               value="$(arg moveit_use_bio_ik)" /> -->
     </include>
 
     <!-- Start realsense, if necessary -->
     <include file="$(find realsense2_camera)/launch/rs_rgbd.launch" if="$(arg start_realsense)">
-        <arg name="align_depth"                         value="true"/>
-        <arg name="enable_pointcloud"                   value="true"/>
+        <arg name="align_depth"                         value="true" />
+        <arg name="depth_registered_processing"         value="true" />
+        <arg name="enable_pointcloud"                   value="true" />
+        <arg name="filters"                             value="hole_filling" /> <!-- Change this if need be -->
+        <arg name="depth_width"                         value="$(arg camera_width)" />
+        <arg name="depth_height"                        value="$(arg camera_height)" />
+        <arg name="depth_fps"                           value="$(arg camera_fps)" />
+        <arg name="color_width"                         value="$(arg camera_width)" />
+        <arg name="color_height"                        value="$(arg camera_height)" />
+        <arg name="color_fps"                           value="$(arg camera_fps)" />
     </include>
 
+    <!-- Start the PC segmentation node if necessary -->
+    <!-- Segmentation parameters will have to be changed through rosparam at runtime -->
+    <remap from="/input_cloud" to="/camera/depth/color/points" if="$(arg pc_segmentation)" />
+    <node name="tabletop_segment" pkg="tabletop_segment" type="tabletop_segment_node" if="$(arg pc_segmentation)" />
+
     <!-- Start the grasp and movement server node -->
+    <!-- Parameters are drawn from the config file -->
     <rosparam command="load" file="$(find panda_grasp_server)/config/$(arg grasp_server_config)" ns="panda_grasp_server" />
     <param name="/panda_grasp_server/workspace/table_height" type="double" value="$(arg table_height)" unless="$(eval table_height == '')" />
-    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen">
-        <!-- <param name="gripper/gripper_type"              value="$(arg gripper_type)" /> -->
-        <!-- <param name="workspace/table_height"            value="$(arg table_height)" /> -->
-        <!-- Table size and bench size are supposed to be x,y,z -->
-        <!-- <param name="workspace/table_size"              value="[1.0, 2.0, 0.8]" type="yaml" /> -->
-        <!-- <param name="workspace/bench_size"              value="[0.6, 0.6, 0.6]" type="yaml"/> -->
-        <!-- Offset expressed in x,y coordinates with respect to the bench top surface center -->
-        <!-- <param name="workspace/bench_mount_xy"          value="[0.1, 0.0]" type="yaml"/> -->
-        <!-- <param name="planning/max_vel_scaling_factor"   value="0.3" /> -->
-        <!-- <param name="planning/max_acc_scaling_factor"   value="0.3" /> -->
-        <!-- <param name="planning/eef_link_id"              value="panda_tcp" if="$(arg load_gripper)"/> -->
-        <!-- <param name="planning/eef_link_id"              value="panda_hand" unless="$(arg load_gripper)"/> -->
-        <!-- <param name="ops_params/enable_force_grasp"     value="$(arg
-        enable_force_grasp)"/> -->
-        <!-- <param name="ops_params/enable_graspa_stab_motion" value="$(arg enable_graspa_stab_motion)" /> --> -->
-    </node>
+    <node name="panda_grasp_server" pkg="panda_grasp_server" type="panda_grasp_server_node" output="screen"/>
 
 </launch>
