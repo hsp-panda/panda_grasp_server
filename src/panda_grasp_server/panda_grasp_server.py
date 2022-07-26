@@ -130,6 +130,8 @@ class PandaActionServer(object):
         self._move_group.set_max_acceleration_scaling_factor(config._max_acceleration_scaling_factor)
 
         self._move_group.set_planner_id(config._planner_id)
+        self._move_group.set_planning_time(1.0)
+        self._move_group.set_num_planning_attempts(5)
 
         # Display trajectories in Rviz
         self._publish_rviz = config._publish_rviz
@@ -599,7 +601,7 @@ class PandaActionServer(object):
         # Different behaviour according to the enable_force_grasp flag
         if self._enable_force_grasp:
 
-            grasp_result = self._gripper.grasp_motion(width, velocity, force)
+            grasp_result = self._gripper.grasp_motion(0.0, velocity, force)
 
         else:
 
@@ -665,7 +667,7 @@ class PandaActionServer(object):
 
         # Define a pre-grasp point along the approach axis
         approach_offset = quaternion_matrix([0., 0., 0., 1.])
-        approach_offset[:3, 3] = np.array([0., 0., -0.15])
+        approach_offset[:3, 3] = np.array([0., 0., -0.07])
 
         # Create pregrasp pose
         pregrasp_pose = geometry_msgs.msg.Pose()
@@ -684,18 +686,11 @@ class PandaActionServer(object):
 
         # ---------------- Compute lift pose
         lift_pose = copy.deepcopy(req.grasp.pose)
-        lift_pose.position.z += 0.30
+        lift_pose.position.z += 0.1
 
         # ---------------- Compute dropoff pose
         drop_pose = copy.deepcopy(req.grasp.pose)
-        drop_pose.orientation.x = 1
-        drop_pose.orientation.y = 0
-        drop_pose.orientation.z = 0
-        drop_pose.orientation.w = 0
-
-        drop_pose.position.x = 0.45
-        drop_pose.position.y = -0.5
-        drop_pose.position.z = 0.4
+        drop_pose.position.z += 0.01
 
         # If just testing, return such result
         if req.plan_only:
@@ -711,8 +706,25 @@ class PandaActionServer(object):
         else:
             graspa_board_pose = None
 
+        # Spawn a simple collision object for trajectory planning
+        collision_box_center = [0.47, -0.32, 0.3]
+        collision_box_size = [0.1, 0.1, 0.2]
+        no_coll_object_pose = geometry_msgs.msg.PoseStamped()
+        no_coll_object_pose.header.frame_id = 'panda_link0'
+        no_coll_object_pose.pose.orientation.w = 1.0
+        no_coll_object_pose.pose.position.x = collision_box_center[0]
+        no_coll_object_pose.pose.position.y = collision_box_center[1]
+        no_coll_object_pose.pose.position.z = collision_box_center[2]
+        self._scene.attach_box('panda_link0', 'approach_nocollision', pose=no_coll_object_pose, size=collision_box_size)
+
         if not self.go_to_pose(pregrasp_pose, "Moving to pregrasp pose"):
+            self._scene.remove_world_object('approach_nocollision')
             return False
+
+        self._scene.remove_attached_object('panda_link0', 'approach_nocollision')
+        while len(self._scene.get_attached_objects(['approach_nocollision']).keys()):
+            rospy.sleep(0.1)
+        self._scene.remove_world_object('approach_nocollision')
 
         # Move fingers in pre grasp pose
         # self.command_gripper(req.width.data)
@@ -814,37 +826,9 @@ class PandaActionServer(object):
             self.go_home(use_joints=True)
             return False
 
-        if not self.go_to_pose(pregrasp_pose, message="Moving back from grasping pose"):
-            return False
-
         if not self.go_to_pose(lift_pose, message="Lifting from grasping pose"):
             return False
         rospy.sleep(5)
-
-        # Check if grasp was successful
-        #TODO: use external measured forces to estimate whether the object was grasped or not
-        # gripper_state = self.get_gripper_state()
-        # grasp_success = False if sum(gripper_state) <= 0.01 else True
-        # rospy.loginfo("Gripper state: " +  str(gripper_state[0] + gripper_state[1]))
-        # rospy.loginfo("Grasp success? " + str(grasp_success))
-
-        # Add a collision volume to the end effector, to make sure
-        # whatever object is being carried does not bump into the table or anything else
-        attached_object_pose = geometry_msgs.msg.PoseStamped()
-        attached_object_pose.header.frame_id = self._eef_link
-        attached_object_pose.pose.orientation.w = 1.0
-        attached_object_pose.pose.position.z = 0.1
-        if isinstance(self._gripper, grippers.FrankaHandGripper):
-            self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2],
-                                   touch_links=['panda_hand', 'panda_rightfinger', 'panda_leftfinger'])
-        elif isinstance(self._gripper, (grippers.Robotiq2FGripper, grippers.Robotiq2FGripperForceControlled)):
-            self._scene.attach_box('panda_tcp', 'attached_object', pose=attached_object_pose, size=[0.2,0.2,0.2],
-                                   touch_links=['left_inner_finger', 'right_inner_finger',
-                                                'left_inner_finger_pad', 'right_inner_finger_pad',
-                                                'left_inner_knuckle', 'right_inner_knuckle',
-                                                'left_outer_finger', 'right_outer_finger',
-                                                'left_outer_knuckle', 'right_outer_knuckle',
-                                                'robotiq_arg2f_base_link'])
 
         # Check stability
         if self._enable_graspa_stab_motion:
@@ -859,11 +843,9 @@ class PandaActionServer(object):
 
         self.open_gripper()
 
-        # Let go of the collision box
-        self._scene.remove_attached_object('panda_tcp', 'attached_object')
-        while len(self._scene.get_attached_objects(['attached_object']).keys()):
-            rospy.sleep(0.1)
-        self._scene.remove_world_object('attached_object')
+        # Back to pregrasp
+        if not self.go_to_pose(pregrasp_pose, message="Falling back"):
+            return False
 
         self.go_home(use_joints=True)
 
