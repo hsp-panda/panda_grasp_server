@@ -12,13 +12,12 @@ service_names/panda_set_scaling_factors_service   : "~panda_set_scaling_factors"
 service_names/panda_error_recover_service         : "~panda_error_recover"
 
 # Robot home poses
-home_config/position          : [0.5, 0.0, 0.6]
-home_config/orientation       : [1.0, 0.0, 0.0, 0.0] # quaternion in xyzw order
-home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.7854] # for the Franka Hand
-# home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0] # for any other gripper
+home_config/position          : [0.165669762935, -0.361751088046, 0.557847398442]
+home_config/orientation       : [0.927360512575, -0.0141313805569, 0.373897488626, 0.00185790193485]
+home_config/joints            : [0.27841408217523306, -1.4771527869697294, -0.6524996321577775, -2.017634254221762, -0.5950076219903099, 1.5272780900796254, -0.3751238217866754]
 
 # Configure scene parameters
-workspace/table_height      : 0.13 # z distance from upper side of the table block, from the robot base ref frame
+workspace/table_height      : 0.2 # z distance from upper side of the table block, from the robot base ref frame
 workspace/table_size        : [1.0, 2.0, 0.8] # x y z size of table block
 workspace/bench_size        : [0.6, 0.6, 0.6] # x y z
 workspace/bench_mount_xy    : [0.1, 0.0] # x y wrt center of the bench
@@ -33,9 +32,9 @@ planning/publish_rviz               : True # Weather to visualize trajectories
 # FRANKA_HAND
 # ROBOTIQ_2F
 # ROBOTIQ_2F_FC
-gripper/gripper_type                : "FRANKA_HAND"
+gripper/gripper_type                : "ROBOTIQ_2F"
 
-ops_params/enable_force_grasp         : False # Enable force-based grasping
+ops_params/enable_force_grasp         : True # Enable force-based grasping
 ops_params/enable_graspa_stab_motion  : False # Enable graspa stability motion after grasping
 ops_params/enable_graspa_save_grasp   : False # Enable saving grasps in graspa-format
 ops_params/grasp_save_path            : "dumped_grasps"
