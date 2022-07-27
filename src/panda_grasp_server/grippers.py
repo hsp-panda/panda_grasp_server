@@ -3,10 +3,12 @@
 
 from __future__ import print_function
 from abc import ABCMeta, abstractproperty, abstractmethod
+from threading import Lock
 import rospy
 import actionlib
 
 from std_msgs.msg import Header
+from std_srvs.srv import Trigger
 
 # Actions for Franka Hand
 from franka_gripper.msg import GraspAction, GraspActionGoal, GraspActionResult
@@ -19,8 +21,11 @@ from robotiq_2f_gripper_msgs.msg import CommandRobotiqGripperAction, CommandRobo
 # from robotiq_2f_gripper_control.robotiq_2f_gripper_driver import Robotiq2FingerGripperDriver as Robotiq
 
 # Service from module_xela_gripper
-from xela_2f_force_control.msg import ControllerStatus
-from xela_2f_force_control.srv import Setpoint, SetpointRequest, SetControllerStatus
+from xela_2f_force_control.msg import ControllerStatus, LoggerCommand
+from xela_2f_force_control.srv import Setpoint, SetpointRequest, SetControllerStatus, SetLoggerCommand
+
+# Standard messages
+from std_msgs.msg import Float32
 
 class GripperInterface(object):
     """ General interface for a Gripper class. Assumes a gripper has a maximum
@@ -372,10 +377,11 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     """ Wrapper class for the Robotiq 2F Gripper class with an added force
     control loop on top.
 
-    Manages the gripper via the action client implemented in https://github.com/hsp-panda/robotiq.
-    An implementation that directly interfaces with the serial interface can be used
-    via the Robotiq2FingerGripperDriver class in robotiq_2f_gripper_control.robotiq_2f_gripper_driver
-    but it needs to be run on the same machine the serial is hooked up to.
+    Manages the gripper force control via services implemented in https://github.com/hsp-panda/xela-force-control.
+    It is assumed that the `xela-force-control` `control_node` is running.
+    It can be executed using e.g. `roslaunch xela-force-control force_control`.
+
+    Manages the gripper opening via the action client implemented in https://github.com/hsp-panda/robotiq.
 
     Implements the GripperInterface. Mirrors Robotiq2FGripper for the most part.
     Relies on https://github.com/hsp-panda/xela-force-control for the actual force
@@ -397,51 +403,105 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
         # Call the superclass
         super(Robotiq2FGripperForceControlled, self).__init__(gripper_action_namespace)
 
-        # Add the setpoint service
+        # Set service names
         setpoint_service_name = force_setpoint_service_namespace + "/generate"
-
-        # Add the controller status setter service
         controller_status_setter_name = force_controller_namespace + "/set_controller_status"
+        controller_logger_setter_name = force_controller_namespace + "/set_logger_command"
+        sensor_bias_reset_name = force_controller_namespace + "/xela_sensor_hander/reset_bias"
 
-        # Set up the service proxy
+        # Set up the service proxies
         rospy.wait_for_service(setpoint_service_name)
-        self._force_setpoint = rospy.ServiceProxy(setpoint_service_name, Setpoint)
+        self._force_setpoint_set = rospy.ServiceProxy(setpoint_service_name, Setpoint)
+
         rospy.wait_for_service(controller_status_setter_name)
         self._force_controller_status_set = rospy.ServiceProxy(controller_status_setter_name, SetControllerStatus)
+
+        rospy.wait_for_service(controller_logger_setter_name)
+        self._force_controller_logger_set = rospy.ServiceProxy(controller_logger_setter_name, SetLoggerCommand)
+
+        rospy.wait_for_service(sensor_bias_reset_name)
+        self._sensor_bias_reset = rospy.ServiceProxy(sensor_bias_reset_name, Trigger)
+
+        # Add callback for the topic exposing the object contact position
+        rospy.Subscriber('/xela_2f_force_controller/object_contact_position', Float32, self.object_contact_position_callback)
+
+        # Add callback for the topic exposing the force feedback signal
+        rospy.Subscriber('/xela_2f_force_controller/sensor_feedback', Float32, self.force_feedback_callback)
+
+        # Setup a mutex to enforce safe IO within topic callbacks
+        self._mutex = Lock()
+
+        # Set a default value for the object contact position
+        self._object_contact_position = -1
+
+        # Set a default value for the force feedback
+        self._force_feedback = 0.0
 
     def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=10.0):
 
         # Stop the force controller
         header = Header()
         header.stamp = rospy.Time.now()
-        self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_STOPPED))
+        self.controller_service_call(ControllerStatus.CONTROLLER_STATUS_STOPPED)
 
-        # Move the fingers close to the width
-        self.move_fingers(target_width+0.005, target_speed, target_force)
+        # Force the force trajectory to zero
+        self.setpoint_service_call(0.0, 1.0)
 
-        # Reactivate the force controller with a setpoint (if not faulted)
-        try:
-            header.stamp = rospy.Time.now()
-            if self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_RUNNING)):
-                self._force_setpoint(target_force, duration)
-                rospy.sleep(rospy.Duration(20))
-                return True
-            else:
-                rospy.logerr("Force controller not ready!")
-                return False
-        except rospy.ServiceException as e:
-            print("Setpoint service call failed: %s"%e)
-            return False
+        # Reset internal object contact position
+        with self._mutex:
+            self._object_contact_position = -1
+
+        # Reset the sensor bias
+        self.sensor_bias_reset_call()
+
+        # Start the object contact detection mechanism
+        self.controller_service_call(ControllerStatus.CONTROLLER_STATUS_FIND_CONTACT)
+
+        # Wait for the contact to happen
+        object_contact_position = -1
+        while not self.get_object_contact_position() > 0:
+            rospy.sleep(0.1)
+
+        # Reset the sensor bias before starting the actual force control
+        self.sensor_bias_reset_call()
+
+        # Wait as the force controller might open the gripper a bit to release part of the contact pressure
+        rospy.sleep(1.0)
+
+        # Fetch the force trajectory parameters (and specify defaults if they do not exist)
+        force_target = rospy.get_param('~robotiq2f_force_controlled/force_target', 0.0)
+        force_duration = rospy.get_param('~robotiq2f_force_controlled/force_duration', 1.0)
+        error_threshold = rospy.get_param('~robotiq2f_force_controlled/error_threshold', 5.0)
+
+        # Start the force controller
+        self.controller_service_call(ControllerStatus.CONTROLLER_STATUS_RUNNING)
+
+        # Start the logger
+        self.controller_logger_call(LoggerCommand.LOGGER_COMMAND_RUN)
+
+        # Start the force trajectory generator
+        self.setpoint_service_call(force_target, force_duration)
+
+        # Wait for the force to be 'near' the target
+        # FIXME: Not reliable enough
+        # while abs(force_target - self.get_force_feedback()) > error_threshold:
+        #     rospy.sleep(0.1)
+
+        # Wait at least for the trajectory to complete
+        rospy.sleep(force_duration + 2.0)
+
+        return True
 
     def open_gripper(self, target_speed=_max_speed, wait=True):
 
+        # Stop the logger and save data
+        self.controller_logger_call(LoggerCommand.LOGGER_COMMAND_SAVE)
+
         # Stop the force controller
-        header = Header()
-        header.stamp = rospy.Time.now()
-        self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_STOPPED))
+        self.controller_service_call(ControllerStatus.CONTROLLER_STATUS_STOPPED)
 
         # Reset setpoint generator
-        self._force_setpoint(0.0, 1.0)
+        self.setpoint_service_call(0.0, 1.0)
 
         # Open the gripper
         return super(Robotiq2FGripperForceControlled, self).open_gripper()
@@ -449,9 +509,91 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     def close_gripper(self, target_speed=_min_speed, target_force=_min_force, wait=True):
 
         # Stop the force controller
-        header = Header()
-        header.stamp = rospy.Time.now()
-        self._force_controller_status_set(header, ControllerStatus(ControllerStatus.CONTROLLER_STATUS_STOPPED))
+        self.controller_service_call(ControllerStatus.CONTROLLER_STATUS_STOPPED)
 
-        # Close the gripper
-        return super(Robotiq2FGripperForceControlled, self).close_gripper()
+        rospy.logerr("Closing the gripper completely is disabled within Robotiq2FGripperForceControlled")
+
+        return False
+
+    def controller_service_call(self, controller_status):
+
+        # Make a service call in order to change the force controller status
+        try:
+            header = Header()
+            header.stamp = rospy.Time.now()
+            if self._force_controller_status_set(header, ControllerStatus(controller_status)):
+                return True
+            else:
+                rospy.logerr("Cannot call force controller service!")
+                return False
+        except rospy.ServiceException as e:
+            rospy.logerr("Force controller service call failed: %s"%e)
+            return False
+
+    def controller_logger_call(self, logger_command):
+
+        # Make a service call in order to send a command to the force controller logger
+        try:
+            header = Header()
+            header.stamp = rospy.Time.now()
+            if self._force_controller_logger_set(header, LoggerCommand(logger_command)):
+                return True
+            else:
+                rospy.logerr("Cannot call force controller service!")
+                return False
+        except rospy.ServiceException as e:
+            rospy.logerr("Force controller service call failed: %s"%e)
+            return False
+
+    def setpoint_service_call(self, setpoint, duration):
+
+        # Make a service call in order to generate the desired force for the controller
+        try:
+            if self._force_setpoint_set(setpoint, duration):
+                return True
+            else:
+                rospy.logerr("Cannot call force setpoint service!")
+                return False
+        except rospy.ServiceException as e:
+            rospy.logerr("Force setpoint service call failed: %s"%e)
+            return False
+
+    def sensor_bias_reset_call(self):
+
+        # Make a service call in order to reset the sensor bias
+        try:
+            if self._sensor_bias_reset():
+                return True
+            else:
+                rospy.logerr("Cannot call sensor bias reset service!")
+                return False
+        except rospy.ServiceException as e:
+            rospy.logerr("Sesor bias reset service call failed: %s"%e)
+            return False
+
+    def get_object_contact_position(self):
+
+        object_contact_position = -1
+        with self._mutex:
+            object_contact_position = self._object_contact_position
+
+        return object_contact_position
+
+    def get_force_feedback(self):
+
+        force_feedback = -1
+        with self._mutex:
+            force_feedback = self._force_feedback
+
+        return force_feedback
+
+    def object_contact_position_callback(self, data):
+
+        with self._mutex:
+            self._object_contact_position = data.data
+
+
+    def force_feedback_callback(self, data):
+
+        with self._mutex:
+            self._force_feedback = data.data
