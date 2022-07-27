@@ -33,7 +33,7 @@ planning/publish_rviz               : True # Weather to visualize trajectories
 # FRANKA_HAND
 # ROBOTIQ_2F
 # ROBOTIQ_2F_FC
-gripper/gripper_type                : "ROBOTIQ_2F"
+gripper/gripper_type                : "ROBOTIQ_2F_FC"
 
 ops_params/enable_force_grasp         : True # Enable force-based grasping
 ops_params/enable_graspa_stab_motion  : False # Enable graspa stability motion after grasping
