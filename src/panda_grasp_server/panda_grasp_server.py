@@ -78,9 +78,9 @@ class NodeConfig(object):
         # Configure scene parameters
         self._table_height = rospy.get_param("~workspace/table_height", 0.13) # z distance from upper side of the table block, from the robot base ref frame
         self._table_size = rospy.get_param("~workspace/table_size", (1.0, 2.0, 0.8)) # x y z size of table block
-        self._robot_workspace = None
         self._bench_dimensions = rospy.get_param("~workspace/bench_size", (0.6, 0.6, 0.6)) # x y z
         self._bench_mount_point_xy = rospy.get_param("~workspace/bench_mount_xy", (0.1, 0.0)) # x y wrt center of the bench
+        self._workspace_volume = rospy.get_param("~workspace/workspace_volume", (0.0, 0.0, 0.0, 0.0, 0.0, 0.0)) # bounding volume for the robot workspace (used as outer collision volume). All zeros mean no bounds
 
         # Configure speed/accel scaling factors
         self._max_velocity_scaling_factor = rospy.get_param("~planning/max_vel_scaling_factor", 0.3)
@@ -243,6 +243,20 @@ class PandaActionServer(object):
         # self._scene.add_box("workbench", workbench_pose, config._bench_dimensions)
         self._scene.attach_box('panda_link0', 'workbench', pose=workbench_pose, size=config._bench_dimensions, touch_links=['panda_link0', 'panda_link1'])
 
+        # Cast the parametrized workspace as outer collision volume
+        # Workspace is parametrized as a list [minX, maxX, minY, maxY, minZ, maxZ]
+        # Quaternions parametrized as [x,y,z,w]
+        if config._workspace_volume != (0.0, 0.0, 0.0, 0.0, 0.0, 0.0) :
+            self.add_workspace_plane((config._workspace_volume[0], 0.0, 0.0), (1, 0, 0), "plane_min_x")
+            self.add_workspace_plane((config._workspace_volume[1], 0.0, 0.0), (1, 0, 0), "plane_max_x")
+            self.add_workspace_plane((0.0, config._workspace_volume[2], 0.0), (0, 1, 0), "plane_min_y")
+            self.add_workspace_plane((0.0, config._workspace_volume[3], 0.0), (0, 1, 0), "plane_max_y")
+            self.add_workspace_plane((0.0, 0.0, config._workspace_volume[4]), (0, 0, 1), "plane_min_z")
+            self.add_workspace_plane((0.0, 0.0, config._workspace_volume[5]), (0, 0, 1), "plane_max_z")
+            rospy.loginfo("Applied workspace limits: \n\tX: {} {} \n\tY: {} {} \n\tZ: {} {}".format(config._workspace_volume[0], config._workspace_volume[1],
+                                                                                                    config._workspace_volume[2], config._workspace_volume[3],
+                                                                                                    config._workspace_volume[4], config._workspace_volume[5]))
+
         # Not sure why editing the ACM does not work, I'll leave code here anyway
         # from moveit_msgs.msg import PlanningScene, PlanningSceneComponents
         # from moveit_msgs.srv import GetPlanningScene
@@ -263,6 +277,22 @@ class PandaActionServer(object):
 
         #     pub_planning_scene.publish(planning_scene_diff)
         #     rospy.sleep(1.0)
+
+    def add_workspace_plane(self, position, normal, name):
+
+        # Set a scene collision plane given position wrt world
+        # position is a (x,y,z) tuple
+        # normal is a (x,y,z) wrt world
+
+        plane_pose = geometry_msgs.msg.PoseStamped(header=std_msgs.msg.Header(seq=0,
+                                                                        stamp=rospy.Time.now(),
+                                                                        frame_id="world"),
+                                                   pose=geometry_msgs.msg.Pose())
+        plane_pose.pose.orientation.w = 1.0
+        plane_pose.pose.position.x = position[0]
+        plane_pose.pose.position.y = position[1]
+        plane_pose.pose.position.z = position[2]
+        self._scene.add_plane(name, plane_pose, normal)
 
     def set_stopped_status(self, stopped=True):
 
