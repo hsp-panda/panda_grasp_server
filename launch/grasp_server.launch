@@ -2,13 +2,13 @@
 
     <!-- Grasp server arguments -->
     <arg name="load_gripper"                            default="true" />
-    <arg name="gripper_type"                            doc="FRANKA_HAND, ROBOTIQ_2F or ROBOTIQ_2F_FC." />
+    <arg name="gripper_type"                            default="ROBOTIQ_2F" />
     <arg name="robot_ip"                                default="172.16.0.2" />
     <arg name="table_height"                            default="" doc="Unset, if present will override the grasp_server_config YAML"/>
     <arg name="start_realsense"                         default="true" />
-    <arg name="rviz_config"                             default="rviz.rviz" />
-    <arg name="moveit_use_bio_ik"                       default="false" />
-    <arg name="grasp_server_config"                     default="grasp_server_config.yaml" />
+    <arg name="rviz_config"                             default="fc_grasp_demo.rviz" />
+    <arg name="moveit_use_bio_ik"                       default="true" />
+    <arg name="grasp_server_config"                     default="fc_grasp_demo_server_config.yaml" />
 
     <!-- Camera-related arguments -->
     <arg name="pc_segmentation"                         default="true" doc="If true, will attempt at plane removal"/>
