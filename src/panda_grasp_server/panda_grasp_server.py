@@ -707,7 +707,7 @@ class PandaActionServer(object):
             graspa_board_pose = None
 
         # Spawn a simple collision object for trajectory planning
-        collision_box_center = [0.47, -0.32, 0.3]
+        collision_box_center = [req.grasp.pose.position.x, req.grasp.pose.position.y, req.grasp.pose.position.z]
         collision_box_size = [0.1, 0.1, 0.2]
         no_coll_object_pose = geometry_msgs.msg.PoseStamped()
         no_coll_object_pose.header.frame_id = 'panda_link0'
@@ -718,6 +718,9 @@ class PandaActionServer(object):
         self._scene.attach_box('panda_link0', 'approach_nocollision', pose=no_coll_object_pose, size=collision_box_size)
 
         if not self.go_to_pose(pregrasp_pose, "Moving to pregrasp pose"):
+            self._scene.remove_attached_object('panda_link0', 'approach_nocollision')
+            while len(self._scene.get_attached_objects(['approach_nocollision']).keys()):
+                rospy.sleep(0.1)
             self._scene.remove_world_object('approach_nocollision')
             return False
 
