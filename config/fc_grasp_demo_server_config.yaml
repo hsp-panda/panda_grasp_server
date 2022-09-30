@@ -12,16 +12,16 @@ service_names/panda_set_scaling_factors_service   : "~panda_set_scaling_factors"
 service_names/panda_error_recover_service         : "~panda_error_recover"
 
 # Robot home poses
-home_config/position          : [0.5, 0.0, 0.6]
-home_config/orientation       : [1.0, 0.0, 0.0, 0.0] # quaternion in xyzw order
-home_config/joints            : [0.0, 0.0, 0.0, -1.570796327, 0.0, 1.570796327, 0.0] # for any other gripper
+home_config/position          : [0.33622167598, -0.333455055942, 0.379815817982]
+home_config/orientation       : [-0.873451499163, -0.291895926885, -0.355853830208, 0.158893983536]
+home_config/joints            : [0.6838110099751313, -1.5078854191509694, -1.0996187742997556, -2.0259492070558096, -0.5946801000303692, 1.6058029908039084, -0.8741458801676284]
 
 # Configure scene parameters
 workspace/table_height      : 0.13 # z distance from upper side of the table block, from the robot base ref frame
 workspace/table_size        : [1.0, 2.0, 0.8] # x y z size of table block
 workspace/bench_size        : [0.6, 0.6, 0.6] # x y z
 workspace/bench_mount_xy    : [0.1, 0.0] # x y wrt center of the bench
-workspace/workspace_volume  : [-0.4, 1, -0.6, 0.6, -0.2, 1] # bounding volume for all the robot links [minX, maxX, minY, maxY, minZ, maxZ]
+workspace/workspace_volume  : [-0.6, 1, -1, 0.6, -0.2, 1] # bounding volume for all the robot links [minX, maxX, minY, maxY, minZ, maxZ]
 
 planning/max_vel_scaling_factor     : 0.3 # Configure speed/acceleration in planning
 planning/max_acc_scaling_factor     : 0.3
@@ -35,7 +35,7 @@ planning/publish_rviz               : True # Weather to visualize trajectories
 # ROBOTIQ_2F_FC
 gripper/gripper_type                : "ROBOTIQ_2F"
 
-ops_params/enable_force_grasp         : False # Enable force-based grasping
+ops_params/enable_force_grasp         : True # Enable force-based grasping
 ops_params/enable_graspa_stab_motion  : False # Enable graspa stability motion after grasping
 ops_params/enable_graspa_save_grasp   : False # Enable saving grasps in graspa-format
 ops_params/grasp_save_path            : "dumped_grasps"
