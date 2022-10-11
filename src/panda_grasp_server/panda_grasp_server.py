@@ -693,6 +693,8 @@ class PandaActionServer(object):
         drop_pose.position.z += 0.01
 
         # If just testing, return such result
+        # In general, the planned trajectory will not be the same one that will be actually performed
+        # However, the planner should reveal an unreachable pose
         if req.plan_only:
             goals = [pregrasp_pose, lift_pose, drop_pose]
             return self.check_trajectory_feasibility(goals)
@@ -708,7 +710,7 @@ class PandaActionServer(object):
 
         # Spawn a simple collision object for trajectory planning
         collision_box_center = [req.grasp.pose.position.x, req.grasp.pose.position.y, req.grasp.pose.position.z]
-        collision_box_size = [0.1, 0.1, 0.2]
+        collision_box_size = [0.1, 0.1, 0.1]
         no_coll_object_pose = geometry_msgs.msg.PoseStamped()
         no_coll_object_pose.header.frame_id = 'panda_link0'
         no_coll_object_pose.pose.orientation.w = 1.0
