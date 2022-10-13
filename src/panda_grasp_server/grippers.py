@@ -495,6 +495,7 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
 
         # Start the logger
         self.controller_logger_call(LoggerCommand.LOGGER_COMMAND_RUN)
+        self._is_logger_running = True
 
         # Start the force trajectory generator
         self.setpoint_service_call(force_target, force_duration)
@@ -512,7 +513,10 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     def open_gripper(self, target_speed=_max_speed, wait=True):
 
         # Stop the logger and save data
-        self.controller_logger_call(LoggerCommand.LOGGER_COMMAND_SAVE)
+        if self._is_logger_running:
+            self.controller_logger_call(LoggerCommand.LOGGER_COMMAND_SAVE)
+            self.controller_logger_call(LoggerCommand.LOGGER_COMMAND_STOP)
+            self._is_logger_running = False
 
         # Stop the force controller
         self.controller_service_call(ControllerStatus.CONTROLLER_STATUS_STOPPED)
