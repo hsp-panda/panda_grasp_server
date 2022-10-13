@@ -248,6 +248,11 @@ class FrankaHandGripper(GripperInterface):
     def get_gripper_status(self):
         raise NotImplementedError
 
+    def reset(self):
+        """Does nothing."""
+        pass
+
+
 class Robotiq2FGripper(GripperInterface):
     """Wrapper class for the Robotiq 2F Gripper class.
 
@@ -378,6 +383,10 @@ class Robotiq2FGripper(GripperInterface):
     def get_gripper_status(self):
         raise NotImplementedError
 
+    def reset(self):
+        """Does nothing."""
+        pass
+
 class Robotiq2FGripperForceControlled(Robotiq2FGripper):
     """ Wrapper class for the Robotiq 2F Gripper class with an added force
     control loop on top.
@@ -441,6 +450,9 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
 
         # Set a default value for the force feedback
         self._force_feedback = 0.0
+
+        # Whether the data logger is running or not
+        self._is_logger_running = False
 
     def grasp_motion(self, target_width=_min_width, target_speed=_min_speed, target_force=_min_force, wait=True, duration=10.0):
 
@@ -602,3 +614,11 @@ class Robotiq2FGripperForceControlled(Robotiq2FGripper):
 
         with self._mutex:
             self._force_feedback = data.data
+
+
+    def reset(self):
+
+        # Reset state variables
+        self._object_contact_position = -1
+        self._force_feedback = 0.0
+        self._is_logger_running = False
