@@ -597,6 +597,9 @@ class PandaActionServer(object):
 
     def grasp(self, width, velocity=0.5, force=20):
 
+        # Reset the gripper handler in case of a stateful one
+        self._gripper.reset()
+
         # Execute grasp directly with the gripper action server
         # Different behaviour according to the enable_force_grasp flag
         if self._enable_force_grasp:
