@@ -102,6 +102,11 @@ class GripperInterface(object):
     def get_gripper_status(self):
         pass
 
+    @abstractmethod
+    def reset(self):
+        """In case a gripper handler is stateful, we might want reset it."""
+        pass
+
     # Some utils methods
 
     def is_pos_in_bounds(self, pos):
