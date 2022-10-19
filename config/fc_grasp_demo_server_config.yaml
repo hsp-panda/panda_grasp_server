@@ -33,9 +33,14 @@ planning/publish_rviz               : True # Weather to visualize trajectories
 # FRANKA_HAND
 # ROBOTIQ_2F
 # ROBOTIQ_2F_FC
-gripper/gripper_type                : "ROBOTIQ_2F"
+gripper/gripper_type                : "ROBOTIQ_2F_FC"
 
 ops_params/enable_force_grasp         : True # Enable force-based grasping
 ops_params/enable_graspa_stab_motion  : False # Enable graspa stability motion after grasping
 ops_params/enable_graspa_save_grasp   : False # Enable saving grasps in graspa-format
 ops_params/grasp_save_path            : "dumped_grasps"
+
+# Parameters dedicated to the ROBOTIQ_2F_FC gripper
+robotiq2f_force_controlled/force_target   : 0.0 # Force target used for the force trajectory
+robotiq2f_force_controlled/force_duration : 1.0 # Time length of the force trajectory going from 0.0 to 'robotiq2f_force_controlled/force_target'
+robotiq2f_force_controlled/error_threshold : 5.0 # Error threshold deciding if the grasp is successful
